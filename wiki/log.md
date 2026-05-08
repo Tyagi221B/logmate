@@ -29,3 +29,6 @@ No auth, no saved trips, no over-engineering. Core flow only: form → route →
 
 ## [2026-05-09] ingest | Log sheet totals format from video screenshots
 Totals are HH:MM in separate boxes, must sum to 24:00. Grid is 15-min increments. Total on-duty shown as decimal (e.g. 10.5) for HOS recap.
+
+## [2026-05-09] build | Frontend scaffolded with React + Vite + TypeScript + Tailwind v4
+Created frontend/ with Vite React-TS template. Tailwind v4 added via @tailwindcss/vite plugin (CSS-first, no config file). Tailwind import in index.css. Confirmed working. Ready to build TripForm, RouteMap, LogSheet components.
