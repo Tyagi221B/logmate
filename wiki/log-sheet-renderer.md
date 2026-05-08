@@ -100,5 +100,23 @@ Circled decimal: (driving_hrs + on_duty_hrs) as X.X  ← circled
 - Recap section layout (bottom)
 - Bracket exact pixel thickness
 
+## Mobile UX Decision
+- Log sheet is wide (24 hrs) — cannot be compressed on mobile
+- Show inside `overflow-x-auto` container with `min-width: 900px`
+- Subtle "← Scroll sideways →" hint shown only on small screens
+- One day at a time — prev/next chevron buttons (like flipping a real log book)
+- Paper look: white/cream background, blue grid lines — contrasts with dark app
+
+## Visual Style (confirmed from reference images)
+- Background: white/cream (#fafaf7 or similar)
+- Grid lines: blue (#3b82f6 at ~30% opacity, like real paper forms)
+- Status lines: thick black (stroke-width 2.5)
+- Status change dots: red (#ef4444), radius 4
+- Vertical connectors: black, stroke-width 1.5
+- Remark lines: black, angled 45° down-left
+- Remark text: two lines per change — location + activity, rotated -45°
+- Row labels left-aligned: "1: OFF DUTY", "2: SLEEPER BERTH", "3: DRIVING", "4: ON DUTY (NOT DRIVING)"
+- Time labels: Midnight, 1, 2 … 11, Noon, 1 … 11, Midnight
+
 ## Last Updated
-2026-05-09 — confirmed from video + screenshots
+2026-05-09 — added mobile UX decisions + visual style from reference images

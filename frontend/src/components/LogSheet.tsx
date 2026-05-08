@@ -1,0 +1,444 @@
+import type { DayLog, Segment } from '@/types/trip'
+
+interface Props {
+  day: DayLog
+  driverLocation: string  // home terminal / current location
+}
+
+// ─── Layout constants ────────────────────────────────────────────────────────
+const W = 1100          // total SVG width
+const LABEL_W = 148     // left column for row labels
+const GRID_W = 828      // 24 hrs × 34.5px
+const TOTALS_W = 124    // right column for HH MM boxes
+const HEADER_H = 190    // header section height
+const ROW_H = 44        // each status row height
+const GRID_H = ROW_H * 4
+const REMARKS_H = 140
+const SVG_H = HEADER_H + GRID_H + REMARKS_H + 40  // ~550
+
+// Row Y midpoints (relative to HEADER_H)
+const ROW_Y: Record<Segment['status'], number> = {
+  off_duty: HEADER_H + ROW_H * 0 + ROW_H / 2,
+  sleeper:  HEADER_H + ROW_H * 1 + ROW_H / 2,
+  driving:  HEADER_H + ROW_H * 2 + ROW_H / 2,
+  on_duty:  HEADER_H + ROW_H * 3 + ROW_H / 2,
+}
+
+const GRID_TOP = HEADER_H
+const GRID_BOTTOM = HEADER_H + GRID_H
+
+function hourToX(h: number): number {
+  return LABEL_W + (h / 24) * GRID_W
+}
+
+function toHHMM(decimal: number): { h: string; m: string } {
+  const h = Math.floor(decimal)
+  const m = Math.round((decimal - h) * 60)
+  return { h: String(h).padStart(2, '0'), m: String(m).padStart(2, '0') }
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+export default function LogSheet({ day, driverLocation }: Props) {
+  const { segments, brackets, totals, on_duty_decimal, driving_miles_today, date } = day
+
+  // derive From / To from segments
+  const drivingSegs = segments.filter(s => s.status === 'driving')
+  const fromLabel = drivingSegs[0]?.location.split(' → ')[0] ?? driverLocation
+  const toLabel   = drivingSegs[drivingSegs.length - 1]?.location.split(' → ')[1] ?? driverLocation
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${SVG_H}`}
+      width={W}
+      height={SVG_H}
+      fontFamily="Arial, Helvetica, sans-serif"
+      style={{ display: 'block', background: '#fdfcf7' }}
+    >
+      {/* ── HEADER ──────────────────────────────────────────────────── */}
+      <Header date={date} fromLabel={fromLabel} toLabel={toLabel}
+              driverLocation={driverLocation} drivingMiles={driving_miles_today} />
+
+      {/* ── GRID BACKGROUND ─────────────────────────────────────────── */}
+      <GridBackground />
+
+      {/* ── ROW LABELS ──────────────────────────────────────────────── */}
+      <RowLabels />
+
+      {/* ── HOUR TICKS (top + bottom) ────────────────────────────────── */}
+      <HourTicks />
+
+      {/* ── TIME LABELS ─────────────────────────────────────────────── */}
+      <TimeLabels />
+
+      {/* ── STATUS LINES ─────────────────────────────────────────────── */}
+      <StatusLines segments={segments} />
+
+      {/* ── BRACKETS (stationary periods on driving row) ─────────────── */}
+      <Brackets brackets={brackets} />
+
+      {/* ── REMARKS ──────────────────────────────────────────────────── */}
+      <Remarks segments={segments} />
+
+      {/* ── TOTALS PANEL ─────────────────────────────────────────────── */}
+      <TotalsPanel totals={totals} onDutyDecimal={on_duty_decimal} />
+
+      {/* Outer border */}
+      <rect x={0} y={0} width={W} height={SVG_H} fill="none" stroke="#94a3b8" strokeWidth={1} />
+    </svg>
+  )
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function Header({ date, fromLabel, toLabel, driverLocation, drivingMiles }: {
+  date: string; fromLabel: string; toLabel: string; driverLocation: string; drivingMiles: number
+}) {
+  const [month, day, year] = date.split('/')
+  return (
+    <g>
+      {/* Title */}
+      <text x={LABEL_W} y={22} fontSize={15} fontWeight="bold" fill="#1e3a5f">Drivers Daily Log</text>
+      <text x={LABEL_W + 200} y={22} fontSize={10} fill="#475569">(24 hours)</text>
+
+      {/* Date */}
+      <text x={LABEL_W + 370} y={14} fontSize={9} fill="#475569">Month</text>
+      <text x={LABEL_W + 420} y={14} fontSize={9} fill="#475569">Day</text>
+      <text x={LABEL_W + 460} y={14} fontSize={9} fill="#475569">Year</text>
+      <line x1={LABEL_W + 360} y1={22} x2={LABEL_W + 400} y2={22} stroke="#475569" strokeWidth={0.8} />
+      <line x1={LABEL_W + 410} y1={22} x2={LABEL_W + 445} y2={22} stroke="#475569" strokeWidth={0.8} />
+      <line x1={LABEL_W + 455} y1={22} x2={LABEL_W + 490} y2={22} stroke="#475569" strokeWidth={0.8} />
+      <text x={LABEL_W + 375} y={21} fontSize={11} fill="#0f172a">{month}</text>
+      <text x={LABEL_W + 422} y={21} fontSize={11} fill="#0f172a">{day}</text>
+      <text x={LABEL_W + 460} y={21} fontSize={11} fill="#0f172a">{year}</text>
+
+      {/* Original / Duplicate note */}
+      <text x={LABEL_W + 520} y={14} fontSize={8} fill="#64748b">Original - File at home terminal.</text>
+      <text x={LABEL_W + 520} y={24} fontSize={8} fill="#64748b">Duplicate - Driver retains in his/her possession for 8 days.</text>
+
+      {/* From / To */}
+      <text x={LABEL_W} y={44} fontSize={10} fontWeight="bold" fill="#1e3a5f">From:</text>
+      <line x1={LABEL_W + 34} y1={45} x2={LABEL_W + 240} y2={45} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={LABEL_W + 36} y={44} fontSize={10} fill="#0f172a">{fromLabel}</text>
+
+      <text x={LABEL_W + 260} y={44} fontSize={10} fontWeight="bold" fill="#1e3a5f">To:</text>
+      <line x1={LABEL_W + 278} y1={45} x2={LABEL_W + 480} y2={45} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={LABEL_W + 280} y={44} fontSize={10} fill="#0f172a">{toLabel}</text>
+
+      {/* Miles boxes */}
+      <rect x={LABEL_W} y={54} width={90} height={24} fill="none" stroke="#94a3b8" strokeWidth={0.8} />
+      <rect x={LABEL_W + 96} y={54} width={90} height={24} fill="none" stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={LABEL_W + 2} y={63} fontSize={7} fill="#64748b">Total Miles Driving Today</text>
+      <text x={LABEL_W + 98} y={63} fontSize={7} fill="#64748b">Total Mileage Today</text>
+      <text x={LABEL_W + 45} y={74} fontSize={12} fontWeight="bold" fill="#0f172a" textAnchor="middle">{Math.round(drivingMiles)}</text>
+      <text x={LABEL_W + 141} y={74} fontSize={12} fontWeight="bold" fill="#0f172a" textAnchor="middle">{Math.round(drivingMiles)}</text>
+
+      {/* Carrier info */}
+      <text x={LABEL_W + 260} y={64} fontSize={9} fill="#64748b">Name of Carrier or Carriers</text>
+      <line x1={LABEL_W + 260} y1={78} x2={LABEL_W + 580} y2={78} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={LABEL_W + 260} y={77} fontSize={9} fill="#94a3b8">N/A</text>
+
+      <text x={LABEL_W + 260} y={90} fontSize={9} fill="#64748b">Home Terminal Address</text>
+      <line x1={LABEL_W + 260} y1={104} x2={LABEL_W + 580} y2={104} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={LABEL_W + 260} y={103} fontSize={9} fill="#0f172a">{driverLocation}</text>
+
+      {/* Vehicle numbers */}
+      <text x={LABEL_W} y={102} fontSize={8} fill="#64748b">Truck/Tractor and Trailer Numbers or</text>
+      <text x={LABEL_W} y={112} fontSize={8} fill="#64748b">License Plates(s)/State (show each unit)</text>
+      <line x1={LABEL_W} y1={125} x2={LABEL_W + 240} y2={125} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={LABEL_W + 2} y={124} fontSize={9} fill="#94a3b8">N/A</text>
+    </g>
+  )
+}
+
+function GridBackground() {
+  const rows = ['off_duty', 'sleeper', 'driving', 'on_duty'] as const
+  return (
+    <g>
+      {/* Row backgrounds — alternating subtle tint */}
+      {rows.map((_, i) => (
+        <rect
+          key={i}
+          x={LABEL_W}
+          y={GRID_TOP + i * ROW_H}
+          width={GRID_W}
+          height={ROW_H}
+          fill={i % 2 === 0 ? '#f8faff' : '#f0f4ff'}
+        />
+      ))}
+
+      {/* Vertical hour lines */}
+      {Array.from({ length: 25 }, (_, i) => (
+        <line
+          key={i}
+          x1={hourToX(i)} y1={GRID_TOP}
+          x2={hourToX(i)} y2={GRID_BOTTOM}
+          stroke="#93c5fd"
+          strokeWidth={i === 0 || i === 12 || i === 24 ? 1.2 : 0.5}
+        />
+      ))}
+
+      {/* Horizontal row dividers */}
+      {[0, 1, 2, 3, 4].map(i => (
+        <line
+          key={i}
+          x1={LABEL_W} y1={GRID_TOP + i * ROW_H}
+          x2={LABEL_W + GRID_W} y2={GRID_TOP + i * ROW_H}
+          stroke="#93c5fd" strokeWidth={1}
+        />
+      ))}
+
+      {/* Label column border */}
+      <rect x={0} y={GRID_TOP} width={LABEL_W} height={GRID_H} fill="#f1f5ff" stroke="#93c5fd" strokeWidth={0.8} />
+    </g>
+  )
+}
+
+function RowLabels() {
+  const labels = [
+    { line1: '1: OFF DUTY', line2: null },
+    { line1: '2: SLEEPER', line2: 'BERTH' },
+    { line1: '3: DRIVING', line2: null },
+    { line1: '4: ON DUTY', line2: '(NOT DRIVING)' },
+  ]
+  return (
+    <g>
+      {labels.map((lbl, i) => {
+        const cy = GRID_TOP + i * ROW_H + ROW_H / 2
+        return (
+          <g key={i}>
+            <text x={LABEL_W - 6} y={lbl.line2 ? cy - 5 : cy + 4} fontSize={9} fontWeight="bold"
+                  fill="#1e3a5f" textAnchor="end">{lbl.line1}</text>
+            {lbl.line2 && (
+              <text x={LABEL_W - 6} y={cy + 7} fontSize={9} fontWeight="bold"
+                    fill="#1e3a5f" textAnchor="end">{lbl.line2}</text>
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+function HourTicks() {
+  const ticks: React.ReactNode[] = []
+  for (let h = 0; h <= 24; h++) {
+    const x = hourToX(h)
+    // Major tick top
+    ticks.push(<line key={`mt${h}`} x1={x} y1={GRID_TOP} x2={x} y2={GRID_TOP + 10} stroke="#1e3a5f" strokeWidth={1} />)
+    // Major tick bottom
+    ticks.push(<line key={`mb${h}`} x1={x} y1={GRID_BOTTOM - 10} x2={x} y2={GRID_BOTTOM} stroke="#1e3a5f" strokeWidth={1} />)
+
+    // Minor ticks (15-min intervals)
+    for (let m = 1; m <= 3; m++) {
+      const mx = hourToX(h + m / 4)
+      if (mx > LABEL_W + GRID_W) break
+      ticks.push(<line key={`mn_t${h}_${m}`} x1={mx} y1={GRID_TOP} x2={mx} y2={GRID_TOP + 5} stroke="#3b82f6" strokeWidth={0.5} />)
+      ticks.push(<line key={`mn_b${h}_${m}`} x1={mx} y1={GRID_BOTTOM - 5} x2={mx} y2={GRID_BOTTOM} stroke="#3b82f6" strokeWidth={0.5} />)
+    }
+  }
+  return <g>{ticks}</g>
+}
+
+function TimeLabels() {
+  const labels = [
+    'Mid-\nnight', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
+    'Noon', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', 'Mid-\nnight',
+  ]
+  return (
+    <g>
+      {labels.map((lbl, i) => {
+        const x = hourToX(i)
+        const parts = lbl.split('\n')
+        return (
+          <g key={i}>
+            {/* Top labels */}
+            {parts.map((p, j) => (
+              <text key={j} x={x} y={GRID_TOP - 18 + j * 10} fontSize={8} fill="#1e3a5f" textAnchor="middle">{p}</text>
+            ))}
+            {/* Bottom labels */}
+            {parts.map((p, j) => (
+              <text key={j} x={x} y={GRID_BOTTOM + 14 + j * 10} fontSize={8} fill="#1e3a5f" textAnchor="middle">{p}</text>
+            ))}
+          </g>
+        )
+      })}
+
+      {/* "Total Hours" label at right of bottom axis */}
+      <text x={LABEL_W + GRID_W + 4} y={GRID_BOTTOM + 10} fontSize={7} fill="#1e3a5f">Total</text>
+      <text x={LABEL_W + GRID_W + 4} y={GRID_BOTTOM + 20} fontSize={7} fill="#1e3a5f">Hours</text>
+    </g>
+  )
+}
+
+function StatusLines({ segments }: { segments: Segment[] }) {
+  const elements: React.ReactNode[] = []
+
+  segments.forEach((seg, i) => {
+    const x1 = hourToX(seg.start_hour)
+    const x2 = hourToX(seg.end_hour)
+    const y  = ROW_Y[seg.status]
+
+    // Horizontal status line
+    elements.push(
+      <line key={`line${i}`} x1={x1} x2={x2} y1={y} y2={y}
+            stroke="#0f172a" strokeWidth={2.5} strokeLinecap="round" />
+    )
+
+    // Red dot at start of segment
+    elements.push(
+      <circle key={`dot${i}`} cx={x1} cy={y} r={4} fill="#ef4444" />
+    )
+
+    // Vertical connector from previous segment's row to this row
+    if (i > 0) {
+      const prevY = ROW_Y[segments[i - 1].status]
+      if (prevY !== y) {
+        elements.push(
+          <line key={`conn${i}`} x1={x1} x2={x1} y1={prevY} y2={y}
+                stroke="#0f172a" strokeWidth={1.5} />
+        )
+      }
+    }
+  })
+
+  return <g>{elements}</g>
+}
+
+function Brackets({ brackets }: { brackets: DayLog['brackets'] }) {
+  const drivingY_top    = HEADER_H + ROW_H * 2 + 4
+  const drivingY_bottom = HEADER_H + ROW_H * 2 + ROW_H - 4
+
+  return (
+    <g stroke="#0f172a" strokeWidth={1.2} fill="none">
+      {brackets.map((b, i) => {
+        const x1 = hourToX(b.start_hour)
+        const x2 = hourToX(b.end_hour)
+        return (
+          <g key={i}>
+            <line x1={x1} y1={drivingY_top} x2={x1} y2={drivingY_bottom} />
+            <line x1={x1} y1={drivingY_bottom} x2={x2} y2={drivingY_bottom} />
+            <line x1={x2} y1={drivingY_top} x2={x2} y2={drivingY_bottom} />
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+function Remarks({ segments }: { segments: Segment[] }) {
+  const remarkY = GRID_BOTTOM + 28
+  const LINE_LEN = 52
+
+  // Only unique status changes with a location worth noting
+  const changes = segments.filter((seg, i) => {
+    if (i === 0) return true
+    return segments[i - 1].status !== seg.status
+  })
+
+  return (
+    <g>
+      <text x={4} y={remarkY + 2} fontSize={10} fontWeight="bold" fill="#1e3a5f">REMARKS</text>
+
+      {changes.map((seg, i) => {
+        const x = hourToX(seg.start_hour)
+        // Small tick below grid
+        const tickY = GRID_BOTTOM + 4
+
+        // 45° line going down-left
+        const x2 = x - LINE_LEN * Math.cos(Math.PI / 4)
+        const y2 = tickY + LINE_LEN * Math.sin(Math.PI / 4)
+
+        const locationText = seg.location.includes(' → ') ? seg.location.split(' → ')[0] : seg.location
+        const activityText = seg.activity
+
+        return (
+          <g key={i}>
+            <line x1={x} y1={tickY} x2={x} y2={tickY + 8} stroke="#0f172a" strokeWidth={1} />
+            <line x1={x} y1={tickY + 8} x2={x2} y2={y2} stroke="#0f172a" strokeWidth={1} />
+            <text
+              x={x2 - 2} y={y2}
+              fontSize={7.5}
+              fill="#0f172a"
+              transform={`rotate(-45, ${x2 - 2}, ${y2})`}
+              textAnchor="end"
+            >
+              {locationText}
+            </text>
+            <text
+              x={x2 - 2} y={y2 + 9}
+              fontSize={7.5}
+              fill="#475569"
+              transform={`rotate(-45, ${x2 - 2}, ${y2 + 9})`}
+              textAnchor="end"
+            >
+              {activityText}
+            </text>
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+function TotalsPanel({ totals, onDutyDecimal }: { totals: DayLog['totals']; onDutyDecimal: number }) {
+  const rows: Array<{ label: string; key: keyof typeof totals }> = [
+    { label: '1', key: 'off_duty' },
+    { label: '2', key: 'sleeper' },
+    { label: '3', key: 'driving' },
+    { label: '4', key: 'on_duty' },
+  ]
+  const totalHours = Object.values(totals).reduce((s, v) => s + v, 0)
+  const panelX = LABEL_W + GRID_W + 2
+
+  return (
+    <g>
+      {rows.map((row, i) => {
+        const { h, m } = toHHMM(totals[row.key])
+        const y = GRID_TOP + i * ROW_H
+
+        return (
+          <g key={i}>
+            {/* HH box */}
+            <rect x={panelX} y={y + 6} width={28} height={ROW_H - 12} fill="white" stroke="#93c5fd" strokeWidth={0.8} />
+            <text x={panelX + 14} y={y + ROW_H / 2 + 4} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{h}</text>
+
+            {/* colon */}
+            <text x={panelX + 32} y={y + ROW_H / 2 + 4} fontSize={11} fill="#0f172a" textAnchor="middle">:</text>
+
+            {/* MM box */}
+            <rect x={panelX + 36} y={y + 6} width={28} height={ROW_H - 12} fill="white" stroke="#93c5fd" strokeWidth={0.8} />
+            <text x={panelX + 50} y={y + ROW_H / 2 + 4} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{m}</text>
+          </g>
+        )
+      })}
+
+      {/* Divider */}
+      <line x1={panelX} y1={GRID_BOTTOM} x2={panelX + 68} y2={GRID_BOTTOM} stroke="#1e3a5f" strokeWidth={1} />
+
+      {/* Total row */}
+      {(() => {
+        const { h, m } = toHHMM(totalHours)
+        return (
+          <g>
+            <rect x={panelX} y={GRID_BOTTOM + 4} width={28} height={22} fill="white" stroke="#1e3a5f" strokeWidth={1} />
+            <text x={panelX + 14} y={GRID_BOTTOM + 18} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{h}</text>
+            <text x={panelX + 32} y={GRID_BOTTOM + 18} fontSize={11} fill="#0f172a" textAnchor="middle">:</text>
+            <rect x={panelX + 36} y={GRID_BOTTOM + 4} width={28} height={22} fill="white" stroke="#1e3a5f" strokeWidth={1} />
+            <text x={panelX + 50} y={GRID_BOTTOM + 18} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{m}</text>
+          </g>
+        )
+      })()}
+
+      {/* On-duty decimal — circled */}
+      {(() => {
+        const label = onDutyDecimal.toFixed(1)
+        return (
+          <g>
+            <circle cx={panelX + 34} cy={GRID_BOTTOM + 52} r={16} fill="none" stroke="#1e3a5f" strokeWidth={1.5} />
+            <text x={panelX + 34} y={GRID_BOTTOM + 57} fontSize={11} fontWeight="bold" fill="#1e3a5f" textAnchor="middle">{label}</text>
+          </g>
+        )
+      })()}
+    </g>
+  )
+}

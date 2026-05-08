@@ -5,6 +5,8 @@ export interface TripRequest {
   current_cycle_hours: number
 }
 
+// ---------- HOS schedule types ----------
+
 export interface Segment {
   status: 'off_duty' | 'sleeper' | 'driving' | 'on_duty'
   start_hour: number
@@ -36,20 +38,41 @@ export interface DayLog {
   driving_miles_today: number
 }
 
-export interface Stop {
-  type: 'current' | 'pickup' | 'dropoff'
-  location: string
+// ---------- Route / location types ----------
+
+export interface RouteLocation {
   lat: number
   lng: number
+  label: string
 }
 
-export interface TripResponse {
+export interface RouteLeg {
+  distance_miles: number
+  duration_hours: number
+}
+
+export interface Route {
   total_distance_miles: number
   total_duration_hours: number
-  route_geometry: GeoJSON.LineString
-  stops: Stop[]
+  geometry: GeoJSON.LineString   // [lng, lat] pairs — GeoJSON order
+  legs: RouteLeg[]
+}
+
+export interface TripLocations {
+  current: RouteLocation
+  pickup: RouteLocation
+  dropoff: RouteLocation
+}
+
+// ---------- Full API response ----------
+
+export interface TripResponse {
+  route: Route
+  locations: TripLocations
   days: DayLog[]
 }
+
+// ---------- App state machine ----------
 
 export type AppStatus =
   | { status: 'idle' }

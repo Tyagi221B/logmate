@@ -33,5 +33,11 @@ Totals are HH:MM in separate boxes, must sum to 24:00. Grid is 15-min increments
 ## [2026-05-09] decision | Never assume what a tool installs — always verify first
 Before running any install command, check what the tool already installs automatically (e.g. `npx shadcn@latest add form` auto-installs react-hook-form + @hookform/resolvers). Assuming = duplicate deps, version conflicts, wasted time. Cross-question every step.
 
+## [2026-05-09] decision | Log sheet UX — one day at a time, flip navigation
+Show one log sheet at a time with prev/next chevrons, like a real log book. Horizontally scrollable on mobile (min-width 900px) with scroll hint. Paper-white background contrasts with dark app to feel like a real document.
+
+## [2026-05-09] decision | Results screen layout confirmed
+Order: back button → trip summary card → route map → log sheet (paginated). Max-width 2xl centered, mobile-first.
+
 ## [2026-05-09] build | Frontend scaffolded with React + Vite + TypeScript + Tailwind v4
 Created frontend/ with Vite React-TS template. Tailwind v4 added via @tailwindcss/vite plugin (CSS-first, no config file). Tailwind import in index.css. Confirmed working. Ready to build TripForm, RouteMap, LogSheet components.

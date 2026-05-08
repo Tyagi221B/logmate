@@ -28,26 +28,28 @@ def get_route(coords: list[tuple[float, float]]) -> dict:
     # ORS expects [lng, lat] order
     ors_coords = [[lng, lat] for lat, lng in coords]
 
+    # Use /geojson endpoint to get GeoJSON LineString directly
     resp = requests.post(
-        f"{ORS_BASE}/v2/directions/driving-hgv",
+        f"{ORS_BASE}/v2/directions/driving-hgv/geojson",
         headers={"Authorization": settings.ORS_API_KEY},
         json={"coordinates": ors_coords, "units": "mi"},
         timeout=15,
     )
     resp.raise_for_status()
     data = resp.json()
-    route = data["routes"][0]
+    feature = data["features"][0]
+    props = feature["properties"]
 
     legs = []
-    for segment in route["segments"]:
+    for segment in props["segments"]:
         legs.append({
             "distance_miles": round(segment["distance"], 2),
             "duration_hours": round(segment["duration"] / 3600, 4),
         })
 
     return {
-        "distance_miles": round(route["summary"]["distance"], 2),
-        "duration_hours": round(route["summary"]["duration"] / 3600, 4),
-        "geometry": route["geometry"],
+        "distance_miles": round(props["summary"]["distance"], 2),
+        "duration_hours": round(props["summary"]["duration"] / 3600, 4),
+        "geometry": feature["geometry"],   # GeoJSON LineString {type, coordinates: [[lng,lat],...]}
         "legs": legs,
     }
