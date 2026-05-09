@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: 206.189.133.119
           username: root
@@ -21,6 +21,6 @@ jobs:
             git pull
             cd backend
             source .venv/bin/activate
-            uv pip install -r requirements.txt
+            /root/.local/bin/uv pip install -r requirements.txt
             python manage.py migrate
             systemctl restart gunicorn
