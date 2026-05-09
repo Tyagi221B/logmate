@@ -4,17 +4,43 @@ from django.conf import settings
 ORS_BASE = "https://api.openrouteservice.org"
 
 
+class LocationNotFoundError(Exception):
+    def __init__(self, address: str):
+        self.address = address
+        super().__init__(f"Location not found: '{address}'")
+
+
+class RoutingError(Exception):
+    pass
+
+
+class RateLimitError(Exception):
+    pass
+
+
+class ServiceUnavailableError(Exception):
+    pass
+
+
 def geocode(address: str) -> tuple[float, float]:
     """Convert a city/address string to (lat, lng)."""
-    resp = requests.get(
-        f"{ORS_BASE}/geocode/search",
-        params={"api_key": settings.ORS_API_KEY, "text": address, "size": 1},
-        timeout=10,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.get(
+            f"{ORS_BASE}/geocode/search",
+            params={"api_key": settings.ORS_API_KEY, "text": address, "size": 1},
+            timeout=10,
+        )
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+        raise ServiceUnavailableError()
+
+    if resp.status_code == 429:
+        raise RateLimitError()
+    if not resp.ok:
+        raise ServiceUnavailableError()
+
     features = resp.json().get("features", [])
     if not features:
-        raise ValueError(f"Could not geocode address: {address}")
+        raise LocationNotFoundError(address)
     lng, lat = features[0]["geometry"]["coordinates"]
     return lat, lng
 
@@ -52,13 +78,22 @@ def get_route(coords: list[tuple[float, float]]) -> dict:
     ors_coords = [[lng, lat] for lat, lng in coords]
 
     # Use /geojson endpoint to get GeoJSON LineString directly
-    resp = requests.post(
-        f"{ORS_BASE}/v2/directions/driving-hgv/geojson",
-        headers={"Authorization": settings.ORS_API_KEY},
-        json={"coordinates": ors_coords, "units": "mi"},
-        timeout=15,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.post(
+            f"{ORS_BASE}/v2/directions/driving-hgv/geojson",
+            headers={"Authorization": settings.ORS_API_KEY},
+            json={"coordinates": ors_coords, "units": "mi"},
+            timeout=15,
+        )
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+        raise ServiceUnavailableError()
+
+    if resp.status_code == 429:
+        raise RateLimitError()
+    if resp.status_code >= 500:
+        raise ServiceUnavailableError()
+    if not resp.ok:
+        raise RoutingError()
     data = resp.json()
     feature = data["features"][0]
     props = feature["properties"]

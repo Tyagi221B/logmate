@@ -15,6 +15,7 @@ class ApiError extends Error {
 export function normalizeError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 400) return "Couldn't find one or more locations. Try being more specific (e.g. \"Chicago, IL\")."
+    if (err.status === 422) return err.message || "Request could not be processed. Please check your inputs."
     if (err.status === 429) return 'Too many requests. Please wait a moment and try again.'
     if (err.status === 503) return 'Routing service is temporarily unavailable. Please try again shortly.'
     return `Request failed (${err.status}). Please try again.`

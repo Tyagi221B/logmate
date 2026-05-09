@@ -86,6 +86,31 @@ Diagnosed root cause of all stops showing same city: calculator is time/mile onl
 ## [2026-05-09] build | Log sheet SVG layout finalized
 Grid, header, totals panel (HH:MM boxes + column headers + footer), minor ticks, bracket-driven diagonal remarks, and on-duty red circle all polished and committed. Layout considered done — remaining work is logic correctness (stops locations, miles per day, etc.).
 
+## [2026-05-09] build | Proper error handling implemented across full stack
+
+Custom exceptions in ors_client.py: LocationNotFoundError, RoutingError, RateLimitError, ServiceUnavailableError. views.py catches specific exceptions, returns correct HTTP codes (422/429/503). api.ts: 422 passes through clean backend message, 400 reverts to generic (DRF field errors). No internal URLs or raw library exceptions ever reach the user. Tested: bad location → "Location not found: 'sdadfafa'...", bad route → "Could not calculate a route...", both clean.
+
+## [2026-05-09] incident | Broken error handling — raw internal URLs exposed to user
+
+**What happened:** Tested with "allas, TX" (typo). Error shown: "Routing failed: 404 Client Error: Not Found for url: https://api.openrouteservice.org/v2/directions/driving-hgv/geojson". Internal ORS URL leaked to the user.
+
+**Root cause — two layers of wrong:**
+1. Backend: both geocoding and routing failures caught as bare `Exception`, both returned 400, both used `str(e)` which dumps raw `requests` library exception strings including internal URLs.
+2. Frontend: attempted fix passed through `err.message` for all 400s without first checking what the backend 400 message actually looked like. Made it worse.
+
+**Why we didn't catch it before:** We never tested the error path. Happy path worked, so we shipped. Never asked "what does the user see when something goes wrong?"
+
+**What the correct approach is:**
+- Read ALL affected files before touching anything (we fixed frontend without reading backend error format)
+- Never use `str(e)` from a third-party library — always wrap in custom exceptions with clean messages
+- Use correct HTTP semantics: 422 for bad user input, 429 for rate limit, 503 for upstream down, 400 only for form validation
+- Trace every error scenario end-to-end on paper before writing code
+
+**Fix planned:**
+- `ors_client.py`: define 4 custom exceptions (`LocationNotFoundError`, `RoutingError`, `RateLimitError`, `ServiceUnavailableError`), raise them with clean messages
+- `views.py`: catch specific exceptions, return correct status codes
+- `api.ts`: 400 → generic fallback (DRF field errors), 422 → pass through clean backend message
+
 ## [2026-05-09] test | End-to-end live test passed — 34hr restart confirmed working
 Tested with Roorkee → West Bengal → Chennai, cycle_hours=66. App returned correct response: 34-hr restart triggered when cycle hit 70hrs, then journey continued. No broken pipe. Parallel geocoding fix (LocationCollector + ThreadPoolExecutor) resolved the 10s timeout issue. All four logic fixes confirmed working in production. App considered feature-complete for V1 assessment submission.
 

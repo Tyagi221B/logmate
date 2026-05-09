@@ -5,7 +5,8 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .serializers import TripInputSerializer
-from .ors_client import geocode, get_route, reverse_geocode
+from .ors_client import (geocode, get_route, reverse_geocode,
+                         LocationNotFoundError, RoutingError, RateLimitError, ServiceUnavailableError)
 from .hos_calculator import calculate_schedule, RouteGeoRef
 
 
@@ -89,13 +90,21 @@ class TripPlanView(APIView):
             current_coords = geocode(current_loc)
             pickup_coords = geocode(pickup_loc)
             dropoff_coords = geocode(dropoff_loc)
-        except Exception as e:
-            return Response({"error": f"Geocoding failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except LocationNotFoundError as e:
+            return Response({"error": f"Location not found: '{e.address}'. Try being more specific (e.g. 'Chicago, IL')."}, status=422)
+        except RateLimitError:
+            return Response({"error": "Too many requests. Please wait a moment and try again."}, status=429)
+        except ServiceUnavailableError:
+            return Response({"error": "Routing service temporarily unavailable. Please try again shortly."}, status=503)
 
         try:
             route = get_route([current_coords, pickup_coords, dropoff_coords])
-        except Exception as e:
-            return Response({"error": f"Routing failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except RoutingError:
+            return Response({"error": "Could not calculate a route between the given locations. Check that all locations are reachable by road."}, status=422)
+        except RateLimitError:
+            return Response({"error": "Too many requests. Please wait a moment and try again."}, status=429)
+        except ServiceUnavailableError:
+            return Response({"error": "Routing service temporarily unavailable. Please try again shortly."}, status=503)
 
         leg1_miles = route["legs"][0]["distance_miles"]
         leg2_miles = route["legs"][1]["distance_miles"]
