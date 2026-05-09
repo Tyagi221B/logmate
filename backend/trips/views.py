@@ -74,6 +74,11 @@ def _substitute_locations(days: list[dict], mapping: dict[str, str]) -> None:
             bracket["location"] = sub(bracket["location"])
 
 
+class HealthView(APIView):
+    def get(self, request):
+        return Response({"status": "ok", "version": "1.0.0"})
+
+
 class AutocompleteView(APIView):
     def get(self, request):
         q = request.GET.get("q", "").strip()
