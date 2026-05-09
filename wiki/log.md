@@ -86,6 +86,14 @@ Diagnosed root cause of all stops showing same city: calculator is time/mile onl
 ## [2026-05-09] build | Log sheet SVG layout finalized
 Grid, header, totals panel (HH:MM boxes + column headers + footer), minor ticks, bracket-driven diagonal remarks, and on-duty red circle all polished and committed. Layout considered done — remaining work is logic correctness (stops locations, miles per day, etc.).
 
+## [2026-05-09] build | Location autocomplete + map legend
+
+Autocomplete: new GET /api/autocomplete/?q= endpoint proxies ORS /geocode/autocomplete. layers=locality only (no states — state centroids break HGV routing, confirmed by testing "Gujarat, India"). LocationInput component with leading-edge debounce (fires immediately on first query, 300ms after), in-memory cache via useRef Map (~55% hit rate in practice). Keyboard nav (arrow/enter/escape), blur delay 150ms so click registers before close.
+
+Map legend: C/P/D marker icons explained in a row below the map with matching colors. Previously users had no way to know what the letters meant.
+
+Lessons: (1) never expose API keys from frontend — backend proxy is the only option, not a choice; (2) restrict autocomplete layers to locality — states are not routable destinations for HGV.
+
 ## [2026-05-09] build | Proper error handling implemented across full stack
 
 Custom exceptions in ors_client.py: LocationNotFoundError, RoutingError, RateLimitError, ServiceUnavailableError. views.py catches specific exceptions, returns correct HTTP codes (422/429/503). api.ts: 422 passes through clean backend message, 400 reverts to generic (DRF field errors). No internal URLs or raw library exceptions ever reach the user. Tested: bad location → "Location not found: 'sdadfafa'...", bad route → "Could not calculate a route...", both clean.
