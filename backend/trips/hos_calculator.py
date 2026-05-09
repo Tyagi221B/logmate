@@ -366,19 +366,22 @@ class TripScheduler:
 
         # Pre-trip inspection — 14-hr window starts now
         self.window_start = self.abs_hour
-        self._add_on_duty(PRETRIP_DURATION, current, "Pre-trip/TIV")
+        start_loc = self._loc_at_current_miles() or current
+        self._add_on_duty(PRETRIP_DURATION, start_loc, "Pre-trip/TIV")
 
         # Leg 1: current → pickup
         self._drive_leg(self.leg1_miles, current, pickup)
 
         # Pickup
-        self._add_on_duty(PICKUP_DURATION, pickup, "Pickup")
+        pickup_loc = self._loc_at_current_miles() or pickup
+        self._add_on_duty(PICKUP_DURATION, pickup_loc, "Pickup")
 
         # Leg 2: pickup → dropoff
         self._drive_leg(self.leg2_miles, pickup, dropoff)
 
         # Dropoff
-        self._add_on_duty(DROPOFF_DURATION, dropoff, "Dropoff")
+        dropoff_loc = self._loc_at_current_miles() or dropoff
+        self._add_on_duty(DROPOFF_DURATION, dropoff_loc, "Dropoff")
 
         # End of trip — post-trip + rest
         self._add_on_duty(POSTTRIP_DURATION, dropoff, "Post-trip/TIV")

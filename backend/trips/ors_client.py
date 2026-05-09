@@ -32,7 +32,8 @@ def reverse_geocode(lat: float, lng: float) -> str:
         if features:
             props = features[0].get("properties", {})
             city = props.get("locality") or props.get("county") or ""
-            state = props.get("region_a") or props.get("region") or ""
+            country = props.get("country_a", "")
+            state = (props.get("region_a") if country == "USA" else props.get("region")) or ""
             if city and state:
                 return f"{city}, {state}"
             return city or state or props.get("label", "")
