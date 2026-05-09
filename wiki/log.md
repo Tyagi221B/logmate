@@ -130,5 +130,10 @@ Custom exceptions in ors_client.py: LocationNotFoundError, RoutingError, RateLim
 ## [2026-05-09] test | End-to-end live test passed — 34hr restart confirmed working
 Tested with Roorkee → West Bengal → Chennai, cycle_hours=66. App returned correct response: 34-hr restart triggered when cycle hit 70hrs, then journey continued. No broken pipe. Parallel geocoding fix (LocationCollector + ThreadPoolExecutor) resolved the 10s timeout issue. All four logic fixes confirmed working in production. App considered feature-complete for V1 assessment submission.
 
+## [2026-05-09] decision | Future improvement: real-time progress via SSE
+Trip planning takes ~5s. Current UX is a plain spinner — no feedback on what's happening. Backend has 4 distinct phases: geocode locations → fetch ORS route → run HOS calculator → parallel reverse geocode stops. Two options evaluated:
+- Option A (shipped): fake step labels cycling on timers (~1.2s/~2.8s/~4s breakpoints). Zero backend changes, makes wait feel meaningful.
+- Option B (not shipped): Server-Sent Events — backend emits real progress events per phase, frontend updates in real time. Accurate but requires replacing POST with SSE stream. Worth doing if request time grows or UX polish is prioritised post-V1.
+
 ## [2026-05-09] build | TypeScript strict mode + single source of truth
 Added strict: true to tsconfig.app.json. Fixed 3 real bugs surfaced: Zod v4 invalid_type_error→error, z.coerce.number() input/output type split, erasableSyntaxOnly parameter property. Added npm run typecheck = tsc -b as canonical check. Bare tsc --noEmit silently checks nothing in Vite reference projects.

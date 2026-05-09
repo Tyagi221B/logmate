@@ -12,6 +12,7 @@ export function useLocationAutocomplete() {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cache = useRef<Map<string, AutocompleteSuggestion[]>>(new Map())
   const lastFired = useRef<string>('')
+  const abortRef = useRef<AbortController | null>(null)
 
   const fire = useCallback(async (trimmed: string) => {
     const key = trimmed.toLowerCase()
@@ -24,8 +25,11 @@ export function useLocationAutocomplete() {
       return
     }
 
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
+
     setIsLoading(true)
-    const results = await fetchAutocomplete(trimmed)
+    const results = await fetchAutocomplete(trimmed, abortRef.current.signal)
     // discard stale responses if user kept typing
     if (lastFired.current !== key) return
     setIsLoading(false)

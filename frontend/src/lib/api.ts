@@ -35,9 +35,9 @@ export interface AutocompleteSuggestion {
   lng: number
 }
 
-export async function fetchAutocomplete(q: string): Promise<AutocompleteSuggestion[]> {
+export async function fetchAutocomplete(q: string, signal?: AbortSignal): Promise<AutocompleteSuggestion[]> {
   try {
-    const res = await fetch(`${BASE_URL}/api/autocomplete/?q=${encodeURIComponent(q)}`)
+    const res = await fetch(`${BASE_URL}/api/autocomplete/?q=${encodeURIComponent(q)}`, { signal })
     if (!res.ok) return []
     return res.json() as Promise<AutocompleteSuggestion[]>
   } catch {
