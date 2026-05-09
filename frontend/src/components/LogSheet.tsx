@@ -9,7 +9,7 @@ interface Props {
 const W = 1100          // total SVG width
 const LABEL_W = 148     // left column for row labels
 const GRID_W = 828      // 24 hrs × 34.5px
-const TOTALS_W = 124    // right column for HH MM boxes
+
 const HEADER_H = 190    // header section height
 const ROW_H = 44        // each status row height
 const GRID_H = ROW_H * 4
@@ -77,7 +77,7 @@ export default function LogSheet({ day, driverLocation }: Props) {
       <Brackets brackets={brackets} />
 
       {/* ── REMARKS ──────────────────────────────────────────────────── */}
-      <Remarks segments={segments} />
+      <Remarks brackets={brackets} />
 
       {/* ── TOTALS PANEL ─────────────────────────────────────────────── */}
       <TotalsPanel totals={totals} onDutyDecimal={on_duty_decimal} />
@@ -221,21 +221,45 @@ function RowLabels() {
 
 function HourTicks() {
   const ticks: React.ReactNode[] = []
+
+  // Major ticks — at outer grid edges only (top + bottom of full grid)
   for (let h = 0; h <= 24; h++) {
     const x = hourToX(h)
-    // Major tick top
     ticks.push(<line key={`mt${h}`} x1={x} y1={GRID_TOP} x2={x} y2={GRID_TOP + 10} stroke="#1e3a5f" strokeWidth={1} />)
-    // Major tick bottom
     ticks.push(<line key={`mb${h}`} x1={x} y1={GRID_BOTTOM - 10} x2={x} y2={GRID_BOTTOM} stroke="#1e3a5f" strokeWidth={1} />)
+  }
 
-    // Minor ticks (15-min intervals)
+  // Minor ticks — drawn at EVERY row boundary, pointing inward into each row
+  // This creates the ruler-on-each-edge look matching real ELD paper log sheets
+  const rowBounds = Array.from({ length: 5 }, (_, i) => GRID_TOP + i * ROW_H)
+
+  for (let h = 0; h < 24; h++) {
     for (let m = 1; m <= 3; m++) {
       const mx = hourToX(h + m / 4)
-      if (mx > LABEL_W + GRID_W) break
-      ticks.push(<line key={`mn_t${h}_${m}`} x1={mx} y1={GRID_TOP} x2={mx} y2={GRID_TOP + 5} stroke="#3b82f6" strokeWidth={0.5} />)
-      ticks.push(<line key={`mn_b${h}_${m}`} x1={mx} y1={GRID_BOTTOM - 5} x2={mx} y2={GRID_BOTTOM} stroke="#3b82f6" strokeWidth={0.5} />)
+      const isHalf = m === 2   // :30 is slightly taller than :15 / :45
+      const len = isHalf ? 7 : 4
+
+      rowBounds.forEach((by, bi) => {
+        // Tick pointing DOWN into the row below this boundary
+        if (bi < rowBounds.length - 1) {
+          ticks.push(
+            <line key={`d_${h}_${m}_${bi}`}
+              x1={mx} y1={by} x2={mx} y2={by + len}
+              stroke="#475569" strokeWidth={0.55} />
+          )
+        }
+        // Tick pointing UP into the row above this boundary
+        if (bi > 0) {
+          ticks.push(
+            <line key={`u_${h}_${m}_${bi}`}
+              x1={mx} y1={by} x2={mx} y2={by - len}
+              stroke="#475569" strokeWidth={0.55} />
+          )
+        }
+      })
     }
   }
+
   return <g>{ticks}</g>
 }
 
@@ -284,13 +308,16 @@ function StatusLines({ segments }: { segments: Segment[] }) {
             stroke="#0f172a" strokeWidth={2.5} strokeLinecap="round" />
     )
 
-    // Red dot at start of segment
-    elements.push(
-      <circle key={`dot${i}`} cx={x1} cy={y} r={4} fill="#ef4444" />
-    )
+    // Red dot ONLY when the status row actually changes (not same-row continuations)
+    const statusChanged = i === 0 || segments[i - 1].status !== seg.status
+    if (statusChanged) {
+      elements.push(
+        <circle key={`dot${i}`} cx={x1} cy={y} r={4} fill="#ef4444" />
+      )
+    }
 
-    // Vertical connector from previous segment's row to this row
-    if (i > 0) {
+    // Vertical connector only when row changes
+    if (i > 0 && statusChanged) {
       const prevY = ROW_Y[segments[i - 1].status]
       if (prevY !== y) {
         elements.push(
@@ -305,19 +332,20 @@ function StatusLines({ segments }: { segments: Segment[] }) {
 }
 
 function Brackets({ brackets }: { brackets: DayLog['brackets'] }) {
-  const drivingY_top    = HEADER_H + ROW_H * 2 + 4
-  const drivingY_bottom = HEADER_H + ROW_H * 2 + ROW_H - 4
+  // Brackets sit just below the bottom time axis — small |__| cup shape, NOT inside the grid
+  const bracketTop = GRID_BOTTOM + 14   // just below the axis tick area
+  const bracketH   = 12                  // short drop
 
   return (
-    <g stroke="#0f172a" strokeWidth={1.2} fill="none">
+    <g stroke="#0f172a" strokeWidth={1.5} fill="none">
       {brackets.map((b, i) => {
         const x1 = hourToX(b.start_hour)
         const x2 = hourToX(b.end_hour)
         return (
           <g key={i}>
-            <line x1={x1} y1={drivingY_top} x2={x1} y2={drivingY_bottom} />
-            <line x1={x1} y1={drivingY_bottom} x2={x2} y2={drivingY_bottom} />
-            <line x1={x2} y1={drivingY_top} x2={x2} y2={drivingY_bottom} />
+            <line x1={x1} y1={bracketTop} x2={x1} y2={bracketTop + bracketH} />
+            <line x1={x1} y1={bracketTop + bracketH} x2={x2} y2={bracketTop + bracketH} />
+            <line x1={x2} y1={bracketTop} x2={x2} y2={bracketTop + bracketH} />
           </g>
         )
       })}
@@ -325,54 +353,68 @@ function Brackets({ brackets }: { brackets: DayLog['brackets'] }) {
   )
 }
 
-function Remarks({ segments }: { segments: Segment[] }) {
-  const remarkY = GRID_BOTTOM + 28
-  const LINE_LEN = 52
+function Remarks({ brackets }: { brackets: DayLog['brackets'] }) {
+  // Diagonal originates from the bottom-left corner of each bracket
+  const BRACKET_TOP = GRID_BOTTOM + 14
+  const BRACKET_H   = 12
+  const LINE_START_Y = BRACKET_TOP + BRACKET_H   // = GRID_BOTTOM + 26
+  const MIN_DX  = 20
+  const MIN_GAP = 44
+  const PADDING = 10
 
-  // Only unique status changes with a location worth noting
-  const changes = segments.filter((seg, i) => {
-    if (i === 0) return true
-    return segments[i - 1].status !== seg.status
-  })
+  function labelDx(city: string, activity: string): number {
+    const cityPx     = city.length     * 4.8
+    const activityPx = activity.length * 4.2
+    return Math.max(cityPx, activityPx) + PADDING
+  }
+
+  function cityName(loc: string): string {
+    const base = loc.includes(' → ') ? loc.split(' → ')[0] : loc
+    const firstSegment = base.split(',')[0].trim()
+    return firstSegment.split(' ').slice(0, 2).join(' ')
+  }
+
+  // One label per bracket — originate from the start of the bracket
+  const items = brackets.map(b => ({
+    axisX: hourToX(b.start_hour),
+    city: cityName(b.location),
+    activity: b.activity,
+  }))
+
+  // Enforce minimum X gap between consecutive text anchors
+  const anchorX: number[] = []
+  for (let i = 0; i < items.length; i++) {
+    const ax = items[i].axisX
+    let tx = ax - labelDx(items[i].city, items[i].activity)
+    if (i > 0) tx = Math.max(tx, anchorX[i - 1] + MIN_GAP)
+    tx = Math.min(tx, ax - MIN_DX)
+    anchorX.push(tx)
+  }
 
   return (
     <g>
-      <text x={4} y={remarkY + 2} fontSize={10} fontWeight="bold" fill="#1e3a5f">REMARKS</text>
+      <text x={4} y={GRID_BOTTOM + 46} fontSize={10} fontWeight="bold" fill="#1e3a5f">REMARKS</text>
 
-      {changes.map((seg, i) => {
-        const x = hourToX(seg.start_hour)
-        // Small tick below grid
-        const tickY = GRID_BOTTOM + 4
-
-        // 45° line going down-left
-        const x2 = x - LINE_LEN * Math.cos(Math.PI / 4)
-        const y2 = tickY + LINE_LEN * Math.sin(Math.PI / 4)
-
-        const locationText = seg.location.includes(' → ') ? seg.location.split(' → ')[0] : seg.location
-        const activityText = seg.activity
+      {items.map((item, i) => {
+        const ax = item.axisX
+        const tx = anchorX[i]
+        const dx = ax - tx
+        const ty = LINE_START_Y + dx   // dy = dx for 45°
 
         return (
           <g key={i}>
-            <line x1={x} y1={tickY} x2={x} y2={tickY + 8} stroke="#0f172a" strokeWidth={1} />
-            <line x1={x} y1={tickY + 8} x2={x2} y2={y2} stroke="#0f172a" strokeWidth={1} />
-            <text
-              x={x2 - 2} y={y2}
-              fontSize={7.5}
-              fill="#0f172a"
-              transform={`rotate(-45, ${x2 - 2}, ${y2})`}
-              textAnchor="end"
-            >
-              {locationText}
-            </text>
-            <text
-              x={x2 - 2} y={y2 + 9}
-              fontSize={7.5}
-              fill="#475569"
-              transform={`rotate(-45, ${x2 - 2}, ${y2 + 9})`}
-              textAnchor="end"
-            >
-              {activityText}
-            </text>
+            <line x1={ax} y1={LINE_START_Y} x2={tx} y2={ty}
+                  stroke="#0f172a" strokeWidth={1.2} />
+            <g transform={`rotate(-45, ${tx}, ${ty})`}>
+              <text x={tx} y={ty - 3} fontSize={8} fontWeight="bold"
+                    fill="#0f172a" textAnchor="start">
+                {item.city}
+              </text>
+              <text x={tx} y={ty + 9} fontSize={7}
+                    fill="#475569" textAnchor="start">
+                {item.activity}
+              </text>
+            </g>
           </g>
         )
       })}

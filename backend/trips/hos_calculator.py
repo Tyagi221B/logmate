@@ -50,6 +50,7 @@ class DayLog:
                 "start_hour": seg.start_hour,
                 "end_hour": seg.end_hour,
                 "location": seg.location,
+                "activity": seg.activity,
             })
 
     @property

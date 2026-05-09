@@ -14,7 +14,7 @@ const schema = z.object({
   pickup_location: z.string().min(3, 'Enter at least 3 characters'),
   dropoff_location: z.string().min(3, 'Enter at least 3 characters'),
   current_cycle_hours: z.coerce
-    .number({ invalid_type_error: 'Enter a number' })
+    .number({ error: 'Enter a number' })
     .min(0, 'Cannot be negative')
     .max(70, 'Maximum is 70 hours'),
 }).refine(
@@ -22,19 +22,24 @@ const schema = z.object({
   { message: 'Pickup and dropoff cannot be the same location', path: ['dropoff_location'] },
 )
 
-type FormValues = z.infer<typeof schema>
+// z.coerce.number() has input type `unknown` (accepts any raw value) but output type `number`.
+// We split the types so react-hook-form gets the raw input shape and the submit handler
+// receives the fully-parsed output shape.
+type FormInput  = z.input<typeof schema>   // current_cycle_hours: unknown (raw field value)
+type FormOutput = z.output<typeof schema>  // current_cycle_hours: number  (after coercion)
 
 interface Props {
   onSubmit: (req: TripRequest) => void
   loading: boolean
+  defaultValues?: Partial<TripRequest>
 }
 
-export default function TripForm({ onSubmit, loading }: Props) {
+export default function TripForm({ onSubmit, loading, defaultValues }: Props) {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  } = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(schema), defaultValues })
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">

@@ -19,6 +19,7 @@ export interface Bracket {
   start_hour: number
   end_hour: number
   location: string
+  activity: string
 }
 
 export interface DayTotals {

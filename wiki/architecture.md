@@ -115,5 +115,32 @@ Ship v1, then optimize.
 - Total on-duty hours shown separately as decimal (e.g. 10.5) for HOS recap
 - Grid is in **15-minute increments** (00, 15, 30, 45)
 
+## TypeScript Config — Single Source of Truth
+
+Vite projects split TypeScript into two configs:
+- `tsconfig.json` — root, only holds `references` and `paths`. Has `"files": []` so `tsc --noEmit` alone checks **nothing**.
+- `tsconfig.app.json` — the real app config. Has `strict: true`, `erasableSyntaxOnly`, `noUnusedLocals`, etc.
+
+The IDE (VS Code) uses `tsconfig.app.json` directly.  
+The build script uses `tsc -b` which honours references → also uses `tsconfig.app.json`.
+
+**Rule:** always run `npm run typecheck` (= `tsc -b`) for the authoritative check.  
+Never run bare `tsc --noEmit` — it silently checks nothing.
+
+## Zod v4 API Changes (vs v3)
+- `invalid_type_error` / `required_error` options → replaced by unified `error` option
+- `z.coerce.number()` has input type `unknown`, output type `number` — different from v3
+- With react-hook-form, must use `useForm<FormInput, unknown, FormOutput>` where `FormInput = z.input<typeof schema>` and `FormOutput = z.output<typeof schema>`
+
+## Log Sheet Remarks — One Per Bracket
+Remarks (diagonal labels below grid) are driven by **brackets**, not status changes.
+- Bracket = on-duty-not-driving period (vehicle stationary)
+- One diagonal per bracket: city name above the line, activity below
+- Diagonal originates from the bottom-left corner of the bracket shape
+- Diagonal length is proportional to text length (city × 4.8px/char, activity × 4.2px/char)
+
+## Log Sheet Minor Ticks
+15/30/45-minute ticks are drawn at every **row boundary** (5 positions for 4 rows), pointing inward into each row. `:30` mark is 7px, `:15`/`:45` are 4px. This matches the real ELD paper log ruler-edge style.
+
 ## Last Updated
-2026-05-09 — updated goal to v1 ship-first, added log sheet totals format
+2026-05-09 — TypeScript single source of truth, Zod v4 notes, log sheet remarks + ticks

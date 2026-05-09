@@ -12,12 +12,14 @@ import { Button } from '@/components/ui/button'
 export default function App() {
   const [state, setState] = useState<AppStatus>({ status: 'idle' })
   const [cycleHours, setCycleHours] = useState(0)
+  const [lastRequest, setLastRequest] = useState<TripRequest | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   async function handleSubmit(req: TripRequest) {
     abortRef.current?.abort()
     abortRef.current = new AbortController()
     setCycleHours(req.current_cycle_hours)
+    setLastRequest(req)
     setState({ status: 'loading' })
     try {
       const data = await planTrip(req, abortRef.current.signal)
@@ -40,7 +42,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {(state.status === 'idle' || state.status === 'loading' || state.status === 'error') && (
-        <TripForm onSubmit={handleSubmit} loading={isLoading} />
+        <TripForm onSubmit={handleSubmit} loading={isLoading} defaultValues={lastRequest ?? undefined} />
       )}
       {state.status === 'success' && (
         <Results data={state.data} cycleHours={cycleHours} onReset={handleReset} />

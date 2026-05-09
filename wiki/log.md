@@ -41,3 +41,15 @@ Order: back button → trip summary card → route map → log sheet (paginated)
 
 ## [2026-05-09] build | Frontend scaffolded with React + Vite + TypeScript + Tailwind v4
 Created frontend/ with Vite React-TS template. Tailwind v4 added via @tailwindcss/vite plugin (CSS-first, no config file). Tailwind import in index.css. Confirmed working. Ready to build TripForm, RouteMap, LogSheet components.
+
+## [2026-05-09] build | Full frontend + backend wired end-to-end
+TripForm → POST /api/trip/ → HOS calculator → ORS routing → JSON response. RouteMap (Leaflet), TripSummary, LogSheet (SVG) all rendering. Page-flip navigation for multi-day trips.
+
+## [2026-05-09] decision | Log sheet remarks driven by brackets, not status changes
+Each bracket (on-duty-not-driving period) = one diagonal remark label. City name above the line, activity below. Diagonal starts from bottom-left corner of bracket. Length proportional to text. Previously we were generating one remark per status change which was wrong.
+
+## [2026-05-09] decision | Minor ticks drawn at every row boundary
+Each row boundary (5 for 4 rows) gets inward ticks at :15/:45 (4px) and :30 (7px). Matches real ELD paper log ruler-edge style. Full-height lines through rows was wrong.
+
+## [2026-05-09] build | TypeScript strict mode + single source of truth
+Added strict: true to tsconfig.app.json. Fixed 3 real bugs surfaced: Zod v4 invalid_type_error→error, z.coerce.number() input/output type split, erasableSyntaxOnly parameter property. Added npm run typecheck = tsc -b as canonical check. Bare tsc --noEmit silently checks nothing in Vite reference projects.
