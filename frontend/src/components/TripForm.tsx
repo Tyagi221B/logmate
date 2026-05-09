@@ -5,6 +5,7 @@ import { Loader2, MapPin, Navigation, Package, Clock } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LocationInput } from '@/components/LocationInput'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Field, FieldTitle, FieldDescription, FieldError, FieldGroup } from '@/components/ui/field'
 import type { TripRequest } from '@/types/trip'
@@ -37,6 +38,7 @@ interface Props {
 export default function TripForm({ onSubmit, loading, defaultValues }: Props) {
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(schema), defaultValues })
@@ -64,11 +66,11 @@ export default function TripForm({ onSubmit, loading, defaultValues }: Props) {
                   Current Location
                 </FieldTitle>
                 <FieldDescription>Where the truck is right now</FieldDescription>
-                <Input
-                  {...register('current_location')}
+                <LocationInput
+                  name="current_location"
+                  control={control}
                   placeholder="e.g. Chicago, IL"
                   disabled={loading}
-                  aria-invalid={!!errors.current_location}
                 />
                 <FieldError errors={[errors.current_location]} />
               </Field>
@@ -79,11 +81,11 @@ export default function TripForm({ onSubmit, loading, defaultValues }: Props) {
                   Pickup Location
                 </FieldTitle>
                 <FieldDescription>Where you'll pick up the load</FieldDescription>
-                <Input
-                  {...register('pickup_location')}
+                <LocationInput
+                  name="pickup_location"
+                  control={control}
                   placeholder="e.g. St. Louis, MO"
                   disabled={loading}
-                  aria-invalid={!!errors.pickup_location}
                 />
                 <FieldError errors={[errors.pickup_location]} />
               </Field>
@@ -94,11 +96,11 @@ export default function TripForm({ onSubmit, loading, defaultValues }: Props) {
                   Dropoff Location
                 </FieldTitle>
                 <FieldDescription>Where you'll deliver the load</FieldDescription>
-                <Input
-                  {...register('dropoff_location')}
+                <LocationInput
+                  name="dropoff_location"
+                  control={control}
                   placeholder="e.g. Dallas, TX"
                   disabled={loading}
-                  aria-invalid={!!errors.dropoff_location}
                 />
                 <FieldError errors={[errors.dropoff_location]} />
               </Field>

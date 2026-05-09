@@ -45,6 +45,34 @@ def geocode(address: str) -> tuple[float, float]:
     return lat, lng
 
 
+def autocomplete(q: str) -> list[dict]:
+    """Return up to 5 location suggestions for a partial query string."""
+    try:
+        resp = requests.get(
+            f"{ORS_BASE}/geocode/autocomplete",
+            params={
+                "api_key": settings.ORS_API_KEY,
+                "text": q,
+                "size": 5,
+                "layers": "locality",
+            },
+            timeout=5,
+        )
+        if not resp.ok:
+            return []
+        features = resp.json().get("features", [])
+        results = []
+        for f in features:
+            props = f.get("properties", {})
+            label = props.get("label", "")
+            lng, lat = f["geometry"]["coordinates"]
+            if label:
+                results.append({"label": label, "lat": lat, "lng": lng})
+        return results
+    except Exception:
+        return []
+
+
 def reverse_geocode(lat: float, lng: float) -> str:
     """Convert (lat, lng) to a city/place string. Returns '' on failure."""
     try:

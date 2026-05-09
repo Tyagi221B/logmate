@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .serializers import TripInputSerializer
-from .ors_client import (geocode, get_route, reverse_geocode,
+from .ors_client import (geocode, get_route, reverse_geocode, autocomplete,
                          LocationNotFoundError, RoutingError, RateLimitError, ServiceUnavailableError)
 from .hos_calculator import calculate_schedule, RouteGeoRef
 
@@ -72,6 +72,14 @@ def _substitute_locations(days: list[dict], mapping: dict[str, str]) -> None:
             seg["location"] = sub(seg["location"])
         for bracket in day["brackets"]:
             bracket["location"] = sub(bracket["location"])
+
+
+class AutocompleteView(APIView):
+    def get(self, request):
+        q = request.GET.get("q", "").strip()
+        if len(q) < 3:
+            return Response([])
+        return Response(autocomplete(q))
 
 
 class TripPlanView(APIView):

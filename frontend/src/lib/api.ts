@@ -29,6 +29,22 @@ export function normalizeError(err: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
+export interface AutocompleteSuggestion {
+  label: string
+  lat: number
+  lng: number
+}
+
+export async function fetchAutocomplete(q: string): Promise<AutocompleteSuggestion[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/autocomplete/?q=${encodeURIComponent(q)}`)
+    if (!res.ok) return []
+    return res.json() as Promise<AutocompleteSuggestion[]>
+  } catch {
+    return []
+  }
+}
+
 export async function planTrip(req: TripRequest, signal?: AbortSignal): Promise<TripResponse> {
   const timeout = AbortSignal.timeout(TIMEOUT_MS)
   const combined = signal
