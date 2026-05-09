@@ -70,6 +70,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://logmate.asmittyagi.com',
 ]
 
 ORS_API_KEY = os.getenv('ORS_API_KEY')
