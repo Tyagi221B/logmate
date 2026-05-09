@@ -1,5 +1,7 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from math import atan2, cos, radians, sin, sqrt
 from typing import Literal
 
 # HOS constants — 70hr/8-day property carrier (all confirmed)
@@ -20,6 +22,44 @@ END_OF_DAY_OFFDUTY = 1.0   # Off Duty after post-trip before sleeper
 AVG_SPEED_MPH = 55.0
 
 DutyStatus = Literal["off_duty", "sleeper", "driving", "on_duty"]
+
+
+class RouteGeoRef:
+    """Maps cumulative trip miles → (lat, lng) by walking ORS route geometry."""
+
+    def __init__(self, coordinates: list[list[float]], total_miles: float) -> None:
+        # coordinates = [[lng, lat], ...] — ORS GeoJSON order
+        self.coords = coordinates
+        self.cum_dist: list[float] = [0.0]
+        for i in range(1, len(coordinates)):
+            self.cum_dist.append(
+                self.cum_dist[-1] + self._haversine(coordinates[i - 1], coordinates[i])
+            )
+        geo_total = self.cum_dist[-1]
+        # Scale factor: reported ORS miles vs our haversine miles (usually close to 1.0)
+        self.scale = total_miles / geo_total if geo_total > 0 else 1.0
+
+    @staticmethod
+    def _haversine(a: list[float], b: list[float]) -> float:
+        R = 3958.8  # Earth radius in miles
+        lat1, lon1 = radians(a[1]), radians(a[0])
+        lat2, lon2 = radians(b[1]), radians(b[0])
+        dlat, dlon = lat2 - lat1, lon2 - lon1
+        h = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+        return R * 2 * atan2(sqrt(h), sqrt(1 - h))
+
+    def interpolate(self, miles: float) -> tuple[float, float]:
+        """Return (lat, lng) at the given cumulative miles from trip start."""
+        target = min(miles / self.scale, self.cum_dist[-1]) if self.scale > 0 else 0.0
+        for i in range(1, len(self.cum_dist)):
+            if self.cum_dist[i] >= target:
+                seg_len = self.cum_dist[i] - self.cum_dist[i - 1]
+                t = (target - self.cum_dist[i - 1]) / seg_len if seg_len > 0 else 0.0
+                lng = self.coords[i - 1][0] + t * (self.coords[i][0] - self.coords[i - 1][0])
+                lat = self.coords[i - 1][1] + t * (self.coords[i][1] - self.coords[i - 1][1])
+                return lat, lng
+        # Past end of route — return last point
+        return self.coords[-1][1], self.coords[-1][0]
 
 STATIONARY_ACTIVITIES = {"Pre-trip/TIV", "Post-trip/TIV", "Pickup", "Dropoff", "Fueling", "30-min break"}
 
@@ -98,6 +138,8 @@ class TripScheduler:
         leg2_miles: float,
         cycle_hours_used: float,
         start_date: date,
+        geo_ref: RouteGeoRef | None = None,
+        resolve_location: Callable[[float, float], str] | None = None,
     ):
         self.locations = {
             "current": current_location,
@@ -107,6 +149,8 @@ class TripScheduler:
         self.leg1_miles = leg1_miles
         self.leg2_miles = leg2_miles
         self.start_date = start_date
+        self.geo_ref = geo_ref
+        self._resolve = resolve_location
 
         # Driver state
         self.cycle_hours = cycle_hours_used
@@ -114,6 +158,7 @@ class TripScheduler:
         self.driving_since_break = 0.0
         self.window_start = 0.0       # abs_hour when current 14-hr window started
         self.miles_since_fuel = 0.0
+        self.cumulative_miles = 0.0   # total miles driven from trip start
 
         # Current position in time
         self.day_idx = 0
@@ -189,7 +234,15 @@ class TripScheduler:
     def _add_driving(self, duration: float, from_loc: str, to_loc: str):
         miles = duration * AVG_SPEED_MPH
         self._day.driving_miles = round(self._day.driving_miles + miles, 1)
+        self.cumulative_miles = round(self.cumulative_miles + miles, 2)
         self._add("driving", duration, f"{from_loc} → {to_loc}", "Driving")
+
+    def _loc_at_current_miles(self) -> str:
+        """Resolve current geographic position to a city string. Returns '' if geo unavailable."""
+        if self.geo_ref is None or self._resolve is None:
+            return ""
+        lat, lng = self.geo_ref.interpolate(self.cumulative_miles)
+        return self._resolve(lat, lng)
 
     def _restart_34hr(self, location: str):
         """34-hour off-duty restart — resets the 8-day cycle window to zero."""
@@ -218,8 +271,9 @@ class TripScheduler:
         while remaining_miles > 0.1:
             # Cycle limit check first — before any other computation
             if self.cycle_hours >= MAX_CYCLE_HOURS - 0.01:
-                self._restart_34hr(from_loc)
-                self._add_on_duty(PRETRIP_DURATION, from_loc, "Pre-trip/TIV")
+                stop_loc = self._loc_at_current_miles() or from_loc
+                self._restart_34hr(stop_loc)
+                self._add_on_duty(PRETRIP_DURATION, stop_loc, "Pre-trip/TIV")
                 continue
 
             # How many miles until each limit?
@@ -235,8 +289,9 @@ class TripScheduler:
 
             # Can't drive at all — must rest first
             if miles_to_drive_limit <= 0.1 or hours_in_window <= 0.01:
-                self._rest(from_loc)
-                self._add_on_duty(PRETRIP_DURATION, from_loc, "Pre-trip/TIV")
+                stop_loc = self._loc_at_current_miles() or from_loc
+                self._rest(stop_loc)
+                self._add_on_duty(PRETRIP_DURATION, stop_loc, "Pre-trip/TIV")
                 continue
 
             # How far can we go before something happens?
@@ -259,21 +314,24 @@ class TripScheduler:
             if remaining_miles <= 0.1:
                 break
 
+            # Resolve stop location once — used by whichever condition triggered
+            stop_loc = self._loc_at_current_miles() or from_loc
+
             # Handle what triggered the stop
             if self.miles_since_fuel >= FUEL_INTERVAL_MILES - 0.1:
-                self._add_on_duty(FUEL_DURATION, from_loc, "Fueling")
+                self._add_on_duty(FUEL_DURATION, stop_loc, "Fueling")
                 self.miles_since_fuel = 0.0
 
             elif self.driving_since_break >= BREAK_TRIGGER_HOURS - 0.01:
-                self._add("off_duty", BREAK_DURATION, from_loc, "30-min break")
+                self._add("off_duty", BREAK_DURATION, stop_loc, "30-min break")
 
             elif self.driving_today >= MAX_DRIVING_HOURS - 0.01:
-                self._rest(from_loc)
-                self._add_on_duty(PRETRIP_DURATION, from_loc, "Pre-trip/TIV")
+                self._rest(stop_loc)
+                self._add_on_duty(PRETRIP_DURATION, stop_loc, "Pre-trip/TIV")
 
             elif hours_in_window <= 0.01:
-                self._rest(from_loc)
-                self._add_on_duty(PRETRIP_DURATION, from_loc, "Pre-trip/TIV")
+                self._rest(stop_loc)
+                self._add_on_duty(PRETRIP_DURATION, stop_loc, "Pre-trip/TIV")
 
             elif self.hour >= 23.99:
                 # Hit midnight while driving — new page continues same status
@@ -327,6 +385,8 @@ def calculate_schedule(
     current_to_pickup_miles: float,
     pickup_to_dropoff_miles: float,
     current_cycle_hours: float,
+    geo_ref: RouteGeoRef | None = None,
+    resolve_location: Callable[[float, float], str] | None = None,
 ) -> list[dict]:
     scheduler = TripScheduler(
         current_location=current_location,
@@ -336,5 +396,7 @@ def calculate_schedule(
         leg2_miles=pickup_to_dropoff_miles,
         cycle_hours_used=current_cycle_hours,
         start_date=date.today(),
+        geo_ref=geo_ref,
+        resolve_location=resolve_location,
     )
     return scheduler.run()

@@ -19,6 +19,25 @@ def geocode(address: str) -> tuple[float, float]:
     return lat, lng
 
 
+def reverse_geocode(lat: float, lng: float) -> str:
+    """Convert (lat, lng) to a city/place string. Returns '' on failure."""
+    try:
+        resp = requests.get(
+            f"{ORS_BASE}/geocode/reverse",
+            params={"api_key": settings.ORS_API_KEY, "point.lat": lat, "point.lon": lng, "size": 1},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        features = resp.json().get("features", [])
+        if features:
+            props = features[0].get("properties", {})
+            label = props.get("locality") or props.get("county") or props.get("region") or props.get("label", "")
+            return label
+    except Exception:
+        pass
+    return ""
+
+
 def get_route(coords: list[tuple[float, float]]) -> dict:
     """
     Get route between multiple points.

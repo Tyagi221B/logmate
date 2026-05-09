@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .serializers import TripInputSerializer
-from .ors_client import geocode, get_route
-from .hos_calculator import calculate_schedule
+from .ors_client import geocode, get_route, reverse_geocode
+from .hos_calculator import calculate_schedule, RouteGeoRef
 
 
 class TripPlanView(APIView):
@@ -34,6 +34,11 @@ class TripPlanView(APIView):
         leg1_miles = route["legs"][0]["distance_miles"]
         leg2_miles = route["legs"][1]["distance_miles"]
 
+        geo_ref = RouteGeoRef(
+            coordinates=route["geometry"]["coordinates"],
+            total_miles=route["distance_miles"],
+        )
+
         days = calculate_schedule(
             current_location=current_loc,
             pickup_location=pickup_loc,
@@ -41,6 +46,8 @@ class TripPlanView(APIView):
             current_to_pickup_miles=leg1_miles,
             pickup_to_dropoff_miles=leg2_miles,
             current_cycle_hours=cycle_hours,
+            geo_ref=geo_ref,
+            resolve_location=reverse_geocode,
         )
 
         return Response({
