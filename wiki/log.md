@@ -137,3 +137,30 @@ Trip planning takes ~5s. Current UX is a plain spinner — no feedback on what's
 
 ## [2026-05-09] build | TypeScript strict mode + single source of truth
 Added strict: true to tsconfig.app.json. Fixed 3 real bugs surfaced: Zod v4 invalid_type_error→error, z.coerce.number() input/output type split, erasableSyntaxOnly parameter property. Added npm run typecheck = tsc -b as canonical check. Bare tsc --noEmit silently checks nothing in Vite reference projects.
+
+## [2026-05-09] incident | Dropdown selection broken — uncontrolled-to-controlled transition
+LocationInput dropdown worked for typing but selecting a suggestion did nothing. Root cause: useForm called without explicit defaultValues for location fields → field.value = undefined on first render → Base UI's useControlled marks input as uncontrolled. When handleSelect called field.onChange(label), value went from undefined to string → Base UI threw error and broke the click handler. Fix: seed defaultValues with { current_location: '', pickup_location: '', dropoff_location: '' } so inputs are always controlled from first render.
+
+## [2026-05-09] build | Autocomplete request cancellation
+Added AbortController to useLocationAutocomplete. Previous in-flight request is aborted before firing a new one. fetchAutocomplete now accepts optional AbortSignal. Combined with existing stale-response guard (lastFired ref), two layers of protection: network request cancelled + stale response discarded. Verified appleboy/ssh-action v1.2.5 (not v1.0.3) and uv full path (/root/.local/bin/uv) required in non-interactive SSH sessions.
+
+## [2026-05-09] build | Step-based loading screen
+Replaced plain spinner with 4-step progress screen: "Geocoding locations → Calculating route → Building HOS schedule → Resolving stop locations". Steps advance on timers (1.2s / 2.8s / 4.0s) matching actual backend phases. LoadingScreen component in App.tsx. Form no longer shows during loading — clean separation of states.
+
+## [2026-05-09] build | Backend deployed to DigitalOcean
+Server: Ubuntu 24.04, $6/mo, BLR1, IP 206.189.133.119. Stack: uv venv + gunicorn (3 workers, unix socket) + nginx + Let's Encrypt SSL. Domain: api.asmittyagi.com (Cloudflare A record, DNS only — not proxied). Certbot auto-renewal configured. gunicorn runs as systemd service, auto-starts on reboot.
+
+## [2026-05-09] build | Frontend deployed to Vercel
+Domain: logmate.asmittyagi.com. Root directory set to frontend/ so Vercel only sees the Vite app. VITE_API_URL=https://api.asmittyagi.com set as env var. Vercel auto-added CNAME to Cloudflare. Auto-deploys on every push to main.
+
+## [2026-05-09] build | CORS fix — production frontend was blocked
+CORS_ALLOWED_ORIGINS in settings.py only had localhost origins. Added https://logmate.asmittyagi.com. Without this, browser blocked all API calls from production frontend (mixed content + CORS). Pushed and pulled on server, restarted gunicorn.
+
+## [2026-05-09] build | GitHub Actions CI/CD for backend
+.github/workflows/deploy-backend.yml: triggers on push to backend/** only (frontend changes handled by Vercel). SSHes into server using SSH_PRIVATE_KEY secret, git pulls, installs deps via uv, runs migrations, restarts gunicorn. Uses appleboy/ssh-action@v1.2.5. uv called via full path /root/.local/bin/uv (not in PATH in non-interactive SSH sessions). Verified working with health endpoint commit.
+
+## [2026-05-09] build | Health check endpoint
+Added GET /api/health/ → {"status": "ok", "version": "1.0.0"}. Used to verify backend is responding after deploys. Also served as first CI/CD pipeline test.
+
+## [2026-05-09] build | GitHub repo published
+Public repo: github.com/Tyagi221B/logmate. Includes backend/, frontend/, wiki/, raw/, CLAUDE.md. No secrets committed. wiki/ included intentionally — shows systematic thinking and AI fluency (both valued in the JD). .gitignore covers .env, *.env.local, .venv/, node_modules/, db.sqlite3.
