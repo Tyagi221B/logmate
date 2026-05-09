@@ -5,6 +5,8 @@ from typing import Literal
 # HOS constants — 70hr/8-day property carrier (all confirmed)
 MAX_DRIVING_HOURS = 11.0
 MAX_WINDOW_HOURS = 14.0
+MAX_CYCLE_HOURS = 70.0
+RESTART_DURATION = 34.0
 BREAK_TRIGGER_HOURS = 8.0
 BREAK_DURATION = 0.5
 REST_DURATION = 10.0
@@ -189,6 +191,14 @@ class TripScheduler:
         self._day.driving_miles = round(self._day.driving_miles + miles, 1)
         self._add("driving", duration, f"{from_loc} → {to_loc}", "Driving")
 
+    def _restart_34hr(self, location: str):
+        """34-hour off-duty restart — resets the 8-day cycle window to zero."""
+        self._add("sleeper", 34.0, location, "34-hr restart")
+        self.cycle_hours = 0.0
+        self.driving_today = 0.0
+        self.driving_since_break = 0.0
+        self.window_start = self.abs_hour
+
     def _rest(self, location: str):
         """10-hour rest: post-trip → off-duty → sleeper (splits across midnight if needed)."""
         self._add_on_duty(POSTTRIP_DURATION, location, "Post-trip/TIV")
@@ -206,6 +216,12 @@ class TripScheduler:
         remaining_miles = total_miles
 
         while remaining_miles > 0.1:
+            # Cycle limit check first — before any other computation
+            if self.cycle_hours >= MAX_CYCLE_HOURS - 0.01:
+                self._restart_34hr(from_loc)
+                self._add_on_duty(PRETRIP_DURATION, from_loc, "Pre-trip/TIV")
+                continue
+
             # How many miles until each limit?
             miles_to_fuel = FUEL_INTERVAL_MILES - self.miles_since_fuel
             miles_to_break = (BREAK_TRIGGER_HOURS - self.driving_since_break) * AVG_SPEED_MPH
@@ -214,6 +230,8 @@ class TripScheduler:
             miles_to_window = hours_in_window * AVG_SPEED_MPH
             hours_to_midnight = 24.0 - self.hour
             miles_to_midnight = hours_to_midnight * AVG_SPEED_MPH
+            # Conservative: treat all remaining cycle hours as drivable
+            miles_to_cycle_limit = max(MAX_CYCLE_HOURS - self.cycle_hours, 0.0) * AVG_SPEED_MPH
 
             # Can't drive at all — must rest first
             if miles_to_drive_limit <= 0.1 or hours_in_window <= 0.01:
@@ -229,6 +247,7 @@ class TripScheduler:
                 max(miles_to_drive_limit, 0.1),
                 max(miles_to_window, 0.1),
                 max(miles_to_midnight, 0.1),
+                max(miles_to_cycle_limit, 0.1),
             )
             drive_miles = max(drive_miles, 0.1)
             drive_hours = drive_miles / AVG_SPEED_MPH
