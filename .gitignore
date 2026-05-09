@@ -14,6 +14,7 @@ backend/staticfiles/
 
 # Environment variables — never commit
 .env
+*.env.local
 backend/.env
 frontend/.env
 
