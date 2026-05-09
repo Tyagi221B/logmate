@@ -366,8 +366,7 @@ function Remarks({ brackets }: { brackets: DayLog['brackets'] }) {
 
   function cityName(loc: string): string {
     const base = loc.includes(' → ') ? loc.split(' → ')[0] : loc
-    const firstSegment = base.split(',')[0].trim()
-    return firstSegment.split(' ').slice(0, 2).join(' ')
+    return base.trim()
   }
 
   // One label per bracket — originate from the start of the bracket
