@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -5,6 +7,70 @@ from rest_framework import status
 from .serializers import TripInputSerializer
 from .ors_client import geocode, get_route, reverse_geocode
 from .hos_calculator import calculate_schedule, RouteGeoRef
+
+
+class LocationCollector:
+    """
+    Phase 1: collect (lat, lng) positions during the HOS calculation run.
+    Phase 2: resolve all positions to city names in parallel, then substitute.
+    """
+
+    def __init__(self) -> None:
+        self._positions: dict[str, tuple[float, float]] = {}
+        self._counter = 0
+
+    def collect(self, lat: float, lng: float) -> str:
+        key = f"__geo_{self._counter}__"
+        self._positions[key] = (lat, lng)
+        self._counter += 1
+        return key
+
+    def resolve_all(self, resolve_fn, max_workers: int = 8) -> dict[str, str]:
+        if not self._positions:
+            return {}
+
+        # Deduplicate: group keys by rounded coordinate — one API call per unique position
+        coord_to_first_key: dict[tuple[float, float], str] = {}
+        for key, (lat, lng) in self._positions.items():
+            coord = (round(lat, 3), round(lng, 3))
+            if coord not in coord_to_first_key:
+                coord_to_first_key[coord] = key
+
+        # unique = [(rounded_coord, (lat, lng))] — one entry per unique position
+        unique = [(coord, self._positions[first_key])
+                  for coord, first_key in coord_to_first_key.items()]
+
+        # Resolve all unique positions in parallel
+        def _resolve_one(item: tuple) -> tuple[tuple, str]:
+            coord, (lat, lng) = item
+            return coord, resolve_fn(lat, lng) or "En Route"
+
+        workers = min(max_workers, len(unique))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            coord_to_city: dict[tuple, str] = dict(pool.map(_resolve_one, unique))
+
+        # Expand back: every key gets the city resolved for its coordinate
+        return {
+            key: coord_to_city[(round(lat, 3), round(lng, 3))]
+            for key, (lat, lng) in self._positions.items()
+        }
+
+
+def _substitute_locations(days: list[dict], mapping: dict[str, str]) -> None:
+    """Replace placeholder geo keys with real city names in-place."""
+    if not mapping:
+        return
+
+    def sub(value: str) -> str:
+        return mapping.get(value, value)
+
+    for day in days:
+        day["day_start_location"] = sub(day["day_start_location"])
+        day["day_end_location"] = sub(day["day_end_location"])
+        for seg in day["segments"]:
+            seg["location"] = sub(seg["location"])
+        for bracket in day["brackets"]:
+            bracket["location"] = sub(bracket["location"])
 
 
 class TripPlanView(APIView):
@@ -39,6 +105,8 @@ class TripPlanView(APIView):
             total_miles=route["distance_miles"],
         )
 
+        # Phase 1: run calculator — positions collected as placeholder keys, no network calls
+        collector = LocationCollector()
         days = calculate_schedule(
             current_location=current_loc,
             pickup_location=pickup_loc,
@@ -47,8 +115,12 @@ class TripPlanView(APIView):
             pickup_to_dropoff_miles=leg2_miles,
             current_cycle_hours=cycle_hours,
             geo_ref=geo_ref,
-            resolve_location=reverse_geocode,
+            resolve_location=collector.collect,
         )
+
+        # Phase 2: resolve all positions in parallel, substitute back into output
+        mapping = collector.resolve_all(reverse_geocode)
+        _substitute_locations(days, mapping)
 
         return Response({
             "route": {

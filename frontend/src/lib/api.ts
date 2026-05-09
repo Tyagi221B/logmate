@@ -1,7 +1,7 @@
 import type { TripRequest, TripResponse } from '@/types/trip'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-const TIMEOUT_MS = 10_000
+const TIMEOUT_MS = 30_000
 
 class ApiError extends Error {
   readonly status: number
