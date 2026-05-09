@@ -42,9 +42,8 @@ export default function LogSheet({ day, driverLocation }: Props) {
   const { segments, brackets, totals, on_duty_decimal, driving_miles_today, date } = day
 
   // derive From / To from segments
-  const drivingSegs = segments.filter(s => s.status === 'driving')
-  const fromLabel = drivingSegs[0]?.location.split(' → ')[0] ?? driverLocation
-  const toLabel   = drivingSegs[drivingSegs.length - 1]?.location.split(' → ')[1] ?? driverLocation
+  const fromLabel = day.day_start_location || driverLocation
+  const toLabel   = day.day_end_location   || driverLocation
 
   return (
     <svg

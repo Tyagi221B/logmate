@@ -37,6 +37,8 @@ export interface DayLog {
   totals: DayTotals
   on_duty_decimal: number
   driving_miles_today: number
+  day_start_location: string
+  day_end_location: string
 }
 
 // ---------- Route / location types ----------

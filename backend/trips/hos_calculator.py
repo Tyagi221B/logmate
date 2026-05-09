@@ -84,6 +84,8 @@ class DayLog:
     segments: list[Segment] = field(default_factory=list)
     brackets: list[dict] = field(default_factory=list)
     driving_miles: float = 0.0
+    day_start_location: str = ""   # city where driving began this calendar day
+    day_end_location: str = ""     # city where driving ended this calendar day
 
     def add_segment(self, seg: Segment):
         self.segments.append(seg)
@@ -125,6 +127,8 @@ class DayLog:
             "totals": self.totals,
             "on_duty_decimal": self.on_duty_decimal,
             "driving_miles_today": round(self.driving_miles, 1),
+            "day_start_location": self.day_start_location,
+            "day_end_location": self.day_end_location,
         }
 
 
@@ -233,9 +237,17 @@ class TripScheduler:
 
     def _add_driving(self, duration: float, from_loc: str, to_loc: str):
         miles = duration * AVG_SPEED_MPH
+
+        # Capture day_start_location before moving (position at drive start)
+        if not self._day.day_start_location:
+            self._day.day_start_location = self._loc_at_current_miles() or from_loc
+
         self._day.driving_miles = round(self._day.driving_miles + miles, 1)
         self.cumulative_miles = round(self.cumulative_miles + miles, 2)
         self._add("driving", duration, f"{from_loc} → {to_loc}", "Driving")
+
+        # Update day_end_location after moving (position at drive end)
+        self._day.day_end_location = self._loc_at_current_miles() or to_loc
 
     def _loc_at_current_miles(self) -> str:
         """Resolve current geographic position to a city string. Returns '' if geo unavailable."""
