@@ -122,7 +122,7 @@ function Results({
           className="overflow-x-auto rounded-xl border border-border"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
-          <LogSheet day={currentDay} driverLocation={data.locations.current.label} />
+          <LogSheet day={currentDay} driverLocation={data.days[0]?.day_start_location || data.locations.current.label} />
         </div>
 
         {/* Scroll hint — only on small screens */}

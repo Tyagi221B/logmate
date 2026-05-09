@@ -86,6 +86,14 @@ Diagnosed root cause of all stops showing same city: calculator is time/mile onl
 ## [2026-05-09] build | Log sheet SVG layout finalized
 Grid, header, totals panel (HH:MM boxes + column headers + footer), minor ticks, bracket-driven diagonal remarks, and on-duty red circle all polished and committed. Layout considered done — remaining work is logic correctness (stops locations, miles per day, etc.).
 
+## [2026-05-09] build | Fix autocomplete labels + Home Terminal Address
+
+autocomplete(): build label from properties instead of using ORS label field (which uses abbreviated region codes for all countries). Same USA/non-USA logic as reverse_geocode: region_a for USA, full region for others. Format: "City, State, Country". Result: "Roorkee, Uttarakhand, India" instead of "Roorkee, UT, India".
+
+Home Terminal Address on log sheet: was showing raw user input string. Now uses days[0].day_start_location (already reverse geocoded) with raw label as fallback.
+
+Leading-edge debounce confirmed working — first suggestion fires immediately on reaching 3 chars, no 300ms wait. Users noticed it feels significantly faster.
+
 ## [2026-05-09] build | Location autocomplete + map legend
 
 Autocomplete: new GET /api/autocomplete/?q= endpoint proxies ORS /geocode/autocomplete. layers=locality only (no states — state centroids break HGV routing, confirmed by testing "Gujarat, India"). LocationInput component with leading-edge debounce (fires immediately on first query, 300ms after), in-memory cache via useRef Map (~55% hit rate in practice). Keyboard nav (arrow/enter/escape), blur delay 150ms so click registers before close.

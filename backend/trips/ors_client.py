@@ -64,8 +64,17 @@ def autocomplete(q: str) -> list[dict]:
         results = []
         for f in features:
             props = f.get("properties", {})
-            label = props.get("label", "")
             lng, lat = f["geometry"]["coordinates"]
+            city = props.get("locality") or props.get("county") or ""
+            country_a = props.get("country_a", "")
+            state = (props.get("region_a") if country_a == "USA" else props.get("region")) or ""
+            country = props.get("country", "")
+            if city and state and country:
+                label = f"{city}, {state}, {country}"
+            elif city and state:
+                label = f"{city}, {state}"
+            else:
+                label = props.get("label", "")
             if label:
                 results.append({"label": label, "lat": lat, "lng": lng})
         return results
