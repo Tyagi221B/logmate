@@ -1,0 +1,26 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 206.189.133.119
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/logmate
+            git pull
+            cd backend
+            source .venv/bin/activate
+            uv pip install -r requirements.txt
+            python manage.py migrate
+            systemctl restart gunicorn
