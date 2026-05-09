@@ -287,9 +287,6 @@ function TimeLabels() {
         )
       })}
 
-      {/* "Total Hours" label at right of bottom axis */}
-      <text x={LABEL_W + GRID_W + 4} y={GRID_BOTTOM + 10} fontSize={7} fill="#1e3a5f">Total</text>
-      <text x={LABEL_W + GRID_W + 4} y={GRID_BOTTOM + 20} fontSize={7} fill="#1e3a5f">Hours</text>
     </g>
   )
 }
@@ -430,13 +427,22 @@ function TotalsPanel({ totals, onDutyDecimal }: { totals: DayLog['totals']; onDu
     { label: '4', key: 'on_duty' },
   ]
   const totalHours = Object.values(totals).reduce((s, v) => s + v, 0)
-  const panelX = LABEL_W + GRID_W + 8   // 8px margin from grid edge
+  const panelX = LABEL_W + GRID_W + 32  // 32px margin from grid edge
   const BOX_W  = 30
   const COLON_W = 10
   const PANEL_W = BOX_W + COLON_W + BOX_W  // 70px total
 
+  const hhCx = panelX + BOX_W / 2
+  const mmCx = panelX + BOX_W + COLON_W + BOX_W / 2
+
   return (
     <g>
+      {/* Column headers */}
+      <text x={hhCx} y={GRID_TOP - 22} fontSize={7} fontWeight="bold" fill="#1e3a5f" textAnchor="middle">HOURS</text>
+      <text x={mmCx} y={GRID_TOP - 30} fontSize={6.5} fontWeight="bold" fill="#1e3a5f" textAnchor="middle">MINUTES</text>
+      <text x={mmCx} y={GRID_TOP - 21} fontSize={6.5} fontWeight="bold" fill="#1e3a5f" textAnchor="middle">TO BE</text>
+      <text x={mmCx} y={GRID_TOP - 12} fontSize={6} fill="#475569" textAnchor="middle">00, 15, 30, 45</text>
+
       {rows.map((row, i) => {
         const { h, m } = toHHMM(totals[row.key])
         const y = GRID_TOP + i * ROW_H
@@ -474,13 +480,17 @@ function TotalsPanel({ totals, onDutyDecimal }: { totals: DayLog['totals']; onDu
         )
       })()}
 
-      {/* On-duty decimal — red circle, slightly bigger */}
+      {/* TOTAL HOURS label */}
+      <text x={panelX + PANEL_W / 2} y={GRID_BOTTOM + 38} fontSize={7} fontWeight="bold" fill="#1e3a5f" textAnchor="middle">TOTAL</text>
+      <text x={panelX + PANEL_W / 2} y={GRID_BOTTOM + 47} fontSize={7} fontWeight="bold" fill="#1e3a5f" textAnchor="middle">HOURS</text>
+
+      {/* On-duty decimal — red circle */}
       {(() => {
         const label = onDutyDecimal.toFixed(1)
         return (
           <g>
-            <circle cx={panelX + PANEL_W / 2} cy={GRID_BOTTOM + 52} r={19} fill="none" stroke="#dc2626" strokeWidth={2} />
-            <text x={panelX + PANEL_W / 2} y={GRID_BOTTOM + 57} fontSize={13} fontWeight="bold" fill="#dc2626" textAnchor="middle">{label}</text>
+            <circle cx={panelX + PANEL_W / 2 - 90} cy={GRID_BOTTOM + 68} r={19} fill="none" stroke="#dc2626" strokeWidth={2} />
+            <text x={panelX + PANEL_W / 2 - 90} y={GRID_BOTTOM + 73} fontSize={13} fontWeight="bold" fill="#dc2626" textAnchor="middle">{label}</text>
           </g>
         )
       })()}
