@@ -51,5 +51,8 @@ Each bracket (on-duty-not-driving period) = one diagonal remark label. City name
 ## [2026-05-09] decision | Minor ticks drawn at every row boundary
 Each row boundary (5 for 4 rows) gets inward ticks at :15/:45 (4px) and :30 (7px). Matches real ELD paper log ruler-edge style. Full-height lines through rows was wrong.
 
+## [2026-05-09] build | Log sheet layout polish
+Header date section: label row above, value+underline below with clear gap. Totals panel: 8px margin from grid, wider boxes (30px), named constants BOX_W/COLON_W. On-duty decimal circle: red (#dc2626), radius 19, font 13. All changes are rendering-only, no data logic touched.
+
 ## [2026-05-09] build | TypeScript strict mode + single source of truth
 Added strict: true to tsconfig.app.json. Fixed 3 real bugs surfaced: Zod v4 invalid_type_error→error, z.coerce.number() input/output type split, erasableSyntaxOnly parameter property. Added npm run typecheck = tsc -b as canonical check. Bare tsc --noEmit silently checks nothing in Vite reference projects.

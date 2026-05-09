@@ -97,23 +97,23 @@ function Header({ date, fromLabel, toLabel, driverLocation, drivingMiles }: {
   return (
     <g>
       {/* Title */}
-      <text x={LABEL_W} y={22} fontSize={15} fontWeight="bold" fill="#1e3a5f">Drivers Daily Log</text>
-      <text x={LABEL_W + 200} y={22} fontSize={10} fill="#475569">(24 hours)</text>
+      <text x={LABEL_W} y={24} fontSize={15} fontWeight="bold" fill="#1e3a5f">Drivers Daily Log</text>
+      <text x={LABEL_W + 205} y={24} fontSize={10} fill="#475569">(24 hours)</text>
 
-      {/* Date */}
-      <text x={LABEL_W + 370} y={14} fontSize={9} fill="#475569">Month</text>
-      <text x={LABEL_W + 420} y={14} fontSize={9} fill="#475569">Day</text>
-      <text x={LABEL_W + 460} y={14} fontSize={9} fill="#475569">Year</text>
-      <line x1={LABEL_W + 360} y1={22} x2={LABEL_W + 400} y2={22} stroke="#475569" strokeWidth={0.8} />
-      <line x1={LABEL_W + 410} y1={22} x2={LABEL_W + 445} y2={22} stroke="#475569" strokeWidth={0.8} />
-      <line x1={LABEL_W + 455} y1={22} x2={LABEL_W + 490} y2={22} stroke="#475569" strokeWidth={0.8} />
-      <text x={LABEL_W + 375} y={21} fontSize={11} fill="#0f172a">{month}</text>
-      <text x={LABEL_W + 422} y={21} fontSize={11} fill="#0f172a">{day}</text>
-      <text x={LABEL_W + 460} y={21} fontSize={11} fill="#0f172a">{year}</text>
+      {/* Date — label on top line, value + underline below with clear gap */}
+      <text x={LABEL_W + 368} y={13} fontSize={8} fill="#64748b">Month</text>
+      <text x={LABEL_W + 418} y={13} fontSize={8} fill="#64748b">Day</text>
+      <text x={LABEL_W + 460} y={13} fontSize={8} fill="#64748b">Year</text>
+      <text x={LABEL_W + 380} y={25} fontSize={12} fontWeight="bold" fill="#0f172a" textAnchor="middle">{month}</text>
+      <line x1={LABEL_W + 358} y1={27} x2={LABEL_W + 404} y2={27} stroke="#475569" strokeWidth={0.8} />
+      <text x={LABEL_W + 428} y={25} fontSize={12} fontWeight="bold" fill="#0f172a" textAnchor="middle">{day}</text>
+      <line x1={LABEL_W + 410} y1={27} x2={LABEL_W + 448} y2={27} stroke="#475569" strokeWidth={0.8} />
+      <text x={LABEL_W + 475} y={25} fontSize={12} fontWeight="bold" fill="#0f172a" textAnchor="middle">{year}</text>
+      <line x1={LABEL_W + 453} y1={27} x2={LABEL_W + 500} y2={27} stroke="#475569" strokeWidth={0.8} />
 
       {/* Original / Duplicate note */}
-      <text x={LABEL_W + 520} y={14} fontSize={8} fill="#64748b">Original - File at home terminal.</text>
-      <text x={LABEL_W + 520} y={24} fontSize={8} fill="#64748b">Duplicate - Driver retains in his/her possession for 8 days.</text>
+      <text x={LABEL_W + 520} y={16} fontSize={8} fill="#64748b">Original - File at home terminal.</text>
+      <text x={LABEL_W + 520} y={27} fontSize={8} fill="#64748b">Duplicate - Driver retains in his/her possession for 8 days.</text>
 
       {/* From / To */}
       <text x={LABEL_W} y={44} fontSize={10} fontWeight="bold" fill="#1e3a5f">From:</text>
@@ -430,7 +430,10 @@ function TotalsPanel({ totals, onDutyDecimal }: { totals: DayLog['totals']; onDu
     { label: '4', key: 'on_duty' },
   ]
   const totalHours = Object.values(totals).reduce((s, v) => s + v, 0)
-  const panelX = LABEL_W + GRID_W + 2
+  const panelX = LABEL_W + GRID_W + 8   // 8px margin from grid edge
+  const BOX_W  = 30
+  const COLON_W = 10
+  const PANEL_W = BOX_W + COLON_W + BOX_W  // 70px total
 
   return (
     <g>
@@ -441,43 +444,43 @@ function TotalsPanel({ totals, onDutyDecimal }: { totals: DayLog['totals']; onDu
         return (
           <g key={i}>
             {/* HH box */}
-            <rect x={panelX} y={y + 6} width={28} height={ROW_H - 12} fill="white" stroke="#93c5fd" strokeWidth={0.8} />
-            <text x={panelX + 14} y={y + ROW_H / 2 + 4} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{h}</text>
+            <rect x={panelX} y={y + 5} width={BOX_W} height={ROW_H - 10} fill="white" stroke="#93c5fd" strokeWidth={0.8} />
+            <text x={panelX + BOX_W / 2} y={y + ROW_H / 2 + 4} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{h}</text>
 
             {/* colon */}
-            <text x={panelX + 32} y={y + ROW_H / 2 + 4} fontSize={11} fill="#0f172a" textAnchor="middle">:</text>
+            <text x={panelX + BOX_W + COLON_W / 2} y={y + ROW_H / 2 + 4} fontSize={12} fill="#0f172a" textAnchor="middle">:</text>
 
             {/* MM box */}
-            <rect x={panelX + 36} y={y + 6} width={28} height={ROW_H - 12} fill="white" stroke="#93c5fd" strokeWidth={0.8} />
-            <text x={panelX + 50} y={y + ROW_H / 2 + 4} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{m}</text>
+            <rect x={panelX + BOX_W + COLON_W} y={y + 5} width={BOX_W} height={ROW_H - 10} fill="white" stroke="#93c5fd" strokeWidth={0.8} />
+            <text x={panelX + BOX_W + COLON_W + BOX_W / 2} y={y + ROW_H / 2 + 4} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{m}</text>
           </g>
         )
       })}
 
       {/* Divider */}
-      <line x1={panelX} y1={GRID_BOTTOM} x2={panelX + 68} y2={GRID_BOTTOM} stroke="#1e3a5f" strokeWidth={1} />
+      <line x1={panelX} y1={GRID_BOTTOM} x2={panelX + PANEL_W} y2={GRID_BOTTOM} stroke="#1e3a5f" strokeWidth={1} />
 
-      {/* Total row */}
+      {/* Total row — bolder border to distinguish from row boxes */}
       {(() => {
         const { h, m } = toHHMM(totalHours)
         return (
           <g>
-            <rect x={panelX} y={GRID_BOTTOM + 4} width={28} height={22} fill="white" stroke="#1e3a5f" strokeWidth={1} />
-            <text x={panelX + 14} y={GRID_BOTTOM + 18} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{h}</text>
-            <text x={panelX + 32} y={GRID_BOTTOM + 18} fontSize={11} fill="#0f172a" textAnchor="middle">:</text>
-            <rect x={panelX + 36} y={GRID_BOTTOM + 4} width={28} height={22} fill="white" stroke="#1e3a5f" strokeWidth={1} />
-            <text x={panelX + 50} y={GRID_BOTTOM + 18} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{m}</text>
+            <rect x={panelX} y={GRID_BOTTOM + 4} width={BOX_W} height={24} fill="white" stroke="#1e3a5f" strokeWidth={1.2} />
+            <text x={panelX + BOX_W / 2} y={GRID_BOTTOM + 19} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{h}</text>
+            <text x={panelX + BOX_W + COLON_W / 2} y={GRID_BOTTOM + 19} fontSize={12} fill="#0f172a" textAnchor="middle">:</text>
+            <rect x={panelX + BOX_W + COLON_W} y={GRID_BOTTOM + 4} width={BOX_W} height={24} fill="white" stroke="#1e3a5f" strokeWidth={1.2} />
+            <text x={panelX + BOX_W + COLON_W + BOX_W / 2} y={GRID_BOTTOM + 19} fontSize={11} fontWeight="bold" fill="#0f172a" textAnchor="middle">{m}</text>
           </g>
         )
       })()}
 
-      {/* On-duty decimal — circled */}
+      {/* On-duty decimal — red circle, slightly bigger */}
       {(() => {
         const label = onDutyDecimal.toFixed(1)
         return (
           <g>
-            <circle cx={panelX + 34} cy={GRID_BOTTOM + 52} r={16} fill="none" stroke="#1e3a5f" strokeWidth={1.5} />
-            <text x={panelX + 34} y={GRID_BOTTOM + 57} fontSize={11} fontWeight="bold" fill="#1e3a5f" textAnchor="middle">{label}</text>
+            <circle cx={panelX + PANEL_W / 2} cy={GRID_BOTTOM + 52} r={19} fill="none" stroke="#dc2626" strokeWidth={2} />
+            <text x={panelX + PANEL_W / 2} y={GRID_BOTTOM + 57} fontSize={13} fontWeight="bold" fill="#dc2626" textAnchor="middle">{label}</text>
           </g>
         )
       })()}
