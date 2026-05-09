@@ -110,12 +110,13 @@ class TripScheduler:
         self.cycle_hours = cycle_hours_used
         self.driving_today = 0.0
         self.driving_since_break = 0.0
-        self.window_start = 6.0       # 14-hr clock, set when pre-trip begins
+        self.window_start = 0.0       # abs_hour when current 14-hr window started
         self.miles_since_fuel = 0.0
 
         # Current position in time
         self.day_idx = 0
-        self.hour = 0.0               # always 0.0 at start of any page
+        self.hour = 0.0               # 0-24, grid position only — resets at midnight
+        self.abs_hour = 0.0           # monotonically increasing, never resets — use for all limit math
 
         # Days list
         self.days: list[DayLog] = []
@@ -178,6 +179,8 @@ class TripScheduler:
         if status != "driving" and duration >= BREAK_DURATION:
             self.driving_since_break = 0.0
 
+        self.abs_hour = round(self.abs_hour + duration, 6)
+
     def _add_on_duty(self, duration: float, location: str, activity: str):
         self._add("on_duty", duration, location, activity)
 
@@ -196,7 +199,7 @@ class TripScheduler:
         # Reset shift counters
         self.driving_today = 0.0
         self.driving_since_break = 0.0
-        self.window_start = self.hour
+        self.window_start = self.abs_hour
 
     def _drive_leg(self, total_miles: float, from_loc: str, to_loc: str):
         """Drive a full leg, inserting breaks/fuel/rests as needed."""
@@ -207,7 +210,7 @@ class TripScheduler:
             miles_to_fuel = FUEL_INTERVAL_MILES - self.miles_since_fuel
             miles_to_break = (BREAK_TRIGGER_HOURS - self.driving_since_break) * AVG_SPEED_MPH
             miles_to_drive_limit = (MAX_DRIVING_HOURS - self.driving_today) * AVG_SPEED_MPH
-            hours_in_window = (self.window_start + MAX_WINDOW_HOURS) - self.hour
+            hours_in_window = (self.window_start + MAX_WINDOW_HOURS) - self.abs_hour
             miles_to_window = hours_in_window * AVG_SPEED_MPH
             hours_to_midnight = 24.0 - self.hour
             miles_to_midnight = hours_to_midnight * AVG_SPEED_MPH
@@ -272,8 +275,8 @@ class TripScheduler:
         pickup = self.locations["pickup"]
         dropoff = self.locations["dropoff"]
 
-        # Pre-trip inspection
-        self.window_start = self.hour
+        # Pre-trip inspection — 14-hr window starts now
+        self.window_start = self.abs_hour
         self._add_on_duty(PRETRIP_DURATION, current, "Pre-trip/TIV")
 
         # Leg 1: current → pickup
