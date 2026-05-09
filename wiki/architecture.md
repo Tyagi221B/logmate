@@ -142,5 +142,83 @@ Remarks (diagonal labels below grid) are driven by **brackets**, not status chan
 ## Log Sheet Minor Ticks
 15/30/45-minute ticks are drawn at every **row boundary** (5 positions for 4 rows), pointing inward into each row. `:30` mark is 7px, `:15`/`:45` are 4px. This matches the real ELD paper log ruler-edge style.
 
+## Known Logic Bugs (as of 2026-05-09)
+
+### Bug 1 — All mid-leg stops show leg start city (CRITICAL)
+`_drive_leg(from_loc, to_loc)` uses `from_loc` for every stop location — fuel, break, rest — regardless of how far into the leg the truck has traveled.
+Example: Leg 2 is `Haridwar → Kanyakumari`. A fuel stop at mile 400 still says "Haridwar" as its location.
+
+**Root cause:** `hos_calculator.py` is time/mile-only, no geographic awareness.
+
+**Fix planned:** Pass ORS route geometry to the calculator. Track cumulative miles driven. Interpolate position along geometry at each stop → reverse geocode → real city name.
+
+### Bug 2 — Driving segment From/To shows full leg endpoints, not day-level positions
+On Day 2 of a multi-day trip, driving still logs as `"Haridwar → Kanyakumari"` even though the driver started the day somewhere in the middle of that leg. Log sheet header From/To fields are wrong.
+
+**Fix planned:** Record actual interpolated position at each day's first and last driving segment. Expose as `day_start_location` / `day_end_location` on DayLog.
+
+### Bug 3 — 70-Hour Cycle Limit NOT Enforced (CRITICAL, newly found)
+`_drive_leg` checks daily limits (11hr driving, 14hr window) but has zero check for `cycle_hours >= 70`.
+Driver with 65 cycle hours used + 4-day trip → calculator generates a 90-hour schedule. Invalid.
+
+**Fix:** Add cycle remaining to `_drive_leg` limits. When exhausted, insert 34-hour restart (FMCSA standard reset mechanism), reset `cycle_hours = 0`.
+
+### Bug 4 — 14-Hour Window Calculation Breaks Across Midnight (newly found)
+`self.hour` resets to 0 at midnight. `window_start` is not adjusted. If shift starts at 10 PM and crosses midnight, the calculator computes 34 hours of window remaining instead of ~10.
+
+**Fix:** Add `self.abs_hour` (monotonically increasing). Use it for all window/limit math. Keep `self.hour` only for 0-24 grid positions.
+
+### Bug 5 — Miles per day (NOT a bug)
+Both Day 1 and Day 2 can show 605 miles. This is correct: 11 hrs × 55 mph = 605 miles max/day. Expected behavior when the trip is long enough to exhaust the driving limit each day.
+
+## Reverse Geocode — Two-Phase Architecture (performance fix)
+
+**Problem:** Inline sequential resolver causes 4-5s latency from 8-10 ORS calls.
+
+**Solution — LocationCollector pattern:**
+```
+Phase 1: Calculator runs with LocationCollector as resolver
+  - No network calls
+  - Each stop position stored as placeholder key ("__geo_0__", "__geo_1__", ...)
+  - Returns immediately
+
+Phase 2: views.py resolves all positions in parallel
+  - Collect all (lat, lng) positions from collector
+  - Deduplicate by rounded coordinate (same position = one API call)
+  - ThreadPoolExecutor fires all calls simultaneously
+  - Substitute real city names back into output
+```
+
+**LocationCollector lives in views.py** (not calculator — keeps calculator pure).
+**reverse_geocode stays in ors_client.py** — injected at the views layer.
+**No changes to frontend.**
+
+Result: 8 × 500ms sequential → 8 × 500ms parallel = ~500ms total geocoding.
+
+## Location-Aware HOS Plan (HLD)
+
+The fix requires adding a `RouteGeoRef` layer between ORS and the calculator:
+
+```
+ORS returns geometry (LineString [[lng,lat], ...]) + leg distances
+    ↓
+RouteGeoRef: precomputes cumulative km/mile along each geometry segment
+    ↓
+TripScheduler: tracks self.cumulative_miles_driven
+    ↓
+On each stop: RouteGeoRef.interpolate(cumulative_miles) → (lat, lng)
+    ↓
+ORS reverse geocode (lat, lng) → "City, State/Country"
+    ↓
+Stop location label = real city
+```
+
+Components to build:
+1. `RouteGeoRef` class in `hos_calculator.py` — geometry interpolation
+2. `reverse_geocode(lat, lng) → str` in `ors_client.py` — ORS reverse geocode endpoint
+3. `TripScheduler` tracks `cumulative_miles_driven`, calls `_location_at_miles()` for stops
+4. `views.py` builds `RouteGeoRef` and passes it to `calculate_schedule`
+5. `DayLog` gets `day_start_location` / `day_end_location` fields
+
 ## Last Updated
-2026-05-09 — TypeScript single source of truth, Zod v4 notes, log sheet remarks + ticks
+2026-05-09 — Added Bugs 3+4 (cycle limit, midnight window), confirmed correct behaviors, edge case decisions

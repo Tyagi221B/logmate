@@ -10,28 +10,34 @@
 - Red dot at every status change point
 - Vertical connector between rows at each status change
 
-### Grid dimensions (our SVG):
+### Grid dimensions (actual SVG constants in LogSheet.tsx):
 ```
-Total width:   1040px  (label 80px + grid 960px)
-Grid width:    960px   (each hour = 40px, 24hrs)
-Row height:    36px    (4 rows = 144px grid height)
-Header:        ~160px above grid
-Remarks:       ~120px below grid
-Totals:        right side panel ~100px wide
+W (total SVG width):  1100px
+LABEL_W:              148px   (left column — row labels)
+GRID_W:               828px   (24hrs × 34.5px/hr)
+ROW_H:                44px
+GRID_H:               ROW_H × 4 = 176px
+HEADER_H:             190px
+REMARKS_H:            140px
+SVG_H:                HEADER_H + GRID_H + REMARKS_H + 40 ≈ 546px
+
+TOTALS PANEL:
+  panelX = LABEL_W + GRID_W + 32 = 1008px
+  BOX_W = 30px, COLON_W = 10px, PANEL_W = 70px
 ```
 
-### Row mapping:
+### Row Y midpoints (absolute, from SVG top):
 ```
-Row 0: Off Duty      → y = 0
-Row 1: Sleeper Berth → y = 36
-Row 2: Driving       → y = 72
-Row 3: On Duty       → y = 108
+off_duty:  HEADER_H + ROW_H*0 + ROW_H/2  = 212px
+sleeper:   HEADER_H + ROW_H*1 + ROW_H/2  = 256px
+driving:   HEADER_H + ROW_H*2 + ROW_H/2  = 300px
+on_duty:   HEADER_H + ROW_H*3 + ROW_H/2  = 344px
 ```
 
 ### X coordinate:
 ```js
-hourToX = (hour) => 80 + (hour / 24) * 960
-// e.g. 6.5 hrs = 80 + (6.5/24)*960 = 80 + 260 = 340px
+hourToX = (hour) => LABEL_W + (hour / 24) * GRID_W
+// e.g. hour 6.5 = 148 + (6.5/24)*828 = 148 + 224.25 = 372.25px
 ```
 
 ## What to Draw
@@ -59,12 +65,15 @@ Shape: |__| (cup/bracket)
 - Minor tick (15 min) every 10px, height = 6px
 - Both at top AND bottom of grid
 
-### Remarks section:
-For each status change with a location:
-- Drop a tick mark below the grid at the change x position
-- Draw a 45° angled line down-left
-- Text at end: "City, State — Activity"
-- Rotated text (-45deg)
+### Remarks section (bracket-driven — confirmed from ELD video):
+One diagonal remark per **bracket** (on-duty-not-driving stationary period). NOT per status change.
+- Diagonal originates from bottom-left corner of the bracket shape
+- City name above the diagonal line, activity below
+- Diagonal length proportional to text width (city × 4.8px/char, activity × 4.2px/char)
+- Spacing enforced: MIN_GAP between consecutive anchor points to prevent overlap
+
+**Why brackets, not status changes?**
+A bracket represents the truck being stationary (pre-trip, pickup, fuel, dropoff, etc.). These are the real-world stops that need to be annotated on the paper log. A status change from Driving → On Duty is meaningless without knowing what the driver was doing at that location. The bracket already carries both the time range and the activity.
 
 ## Header Fields (left side)
 - Driver Number: "N/A"
@@ -118,5 +127,16 @@ Circled decimal: (driving_hrs + on_duty_hrs) as X.X  ← circled
 - Row labels left-aligned: "1: OFF DUTY", "2: SLEEPER BERTH", "3: DRIVING", "4: ON DUTY (NOT DRIVING)"
 - Time labels: Midnight, 1, 2 … 11, Noon, 1 … 11, Midnight
 
+## Minor Ticks (ruler-edge style — confirmed from ELD video)
+Drawn at every **row boundary** (5 positions: top + between each of the 4 rows + bottom).
+- `:30` mark = 7px inward tick
+- `:15` and `:45` marks = 4px inward tick
+- Ticks point INTO the row above and below the boundary (bidirectional)
+
+**Why ruler-edge style?** Real paper ELD logs have a ruler edge at each row boundary so drivers can draw accurate lines. The ticks help visually align time marks without cluttering the grid with full-height lines.
+
+## ORS Geometry → Leaflet
+The `/geojson` endpoint returns a GeoJSON LineString directly. React-Leaflet's `<Polyline>` accepts `positions={coordinates.map(([lng, lat]) => [lat, lng])}` — note the lat/lng swap since ORS uses [lng, lat] order but Leaflet uses [lat, lng].
+
 ## Last Updated
-2026-05-09 — added mobile UX decisions + visual style from reference images
+2026-05-09 — corrected SVG constants, bracket-driven remarks, minor tick spec, ORS geometry note

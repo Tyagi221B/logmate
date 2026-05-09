@@ -31,8 +31,11 @@ def reverse_geocode(lat: float, lng: float) -> str:
         features = resp.json().get("features", [])
         if features:
             props = features[0].get("properties", {})
-            label = props.get("locality") or props.get("county") or props.get("region") or props.get("label", "")
-            return label
+            city = props.get("locality") or props.get("county") or ""
+            state = props.get("region_a") or props.get("region") or ""
+            if city and state:
+                return f"{city}, {state}"
+            return city or state or props.get("label", "")
     except Exception:
         pass
     return ""
