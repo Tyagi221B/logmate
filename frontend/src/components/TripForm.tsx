@@ -41,7 +41,10 @@ export default function TripForm({ onSubmit, loading, defaultValues }: Props) {
     control,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(schema), defaultValues })
+  } = useForm<FormInput, unknown, FormOutput>({
+    resolver: zodResolver(schema),
+    defaultValues: { current_location: '', pickup_location: '', dropoff_location: '', ...defaultValues },
+  })
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
