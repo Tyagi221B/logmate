@@ -172,6 +172,8 @@ class TripScheduler:
         # Days list
         self.days: list[DayLog] = []
         self._new_day()
+        # Seed Day 0 explicitly — _new_day's seeding only runs for days[1:].
+        self.days[0].day_start_location = self._loc_at_current_miles() or current_location
 
         # First day: driver was sleeping midnight → 6:00 AM
         self._add("sleeper", 6.0, current_location, "Sleeping")
@@ -183,10 +185,20 @@ class TripScheduler:
 
     def _new_day(self):
         d = self.start_date + timedelta(days=self.day_idx)
-        self.days.append(DayLog(
+        day = DayLog(
             date_str=d.strftime("%m/%d/%Y"),
             date_offset=self.day_idx,
-        ))
+        )
+        if self.days:
+            # _loc_at_current_miles() is reliable here because _drive_leg clamps
+            # drive segments at midnight — cumulative_miles is stable across the
+            # actual midnight crossing, never mid-drive.
+            midnight_loc = self._loc_at_current_miles()
+            prev = self.days[-1]
+            if not prev.day_end_location:
+                prev.day_end_location = midnight_loc or prev.day_start_location
+            day.day_start_location = midnight_loc or prev.day_end_location
+        self.days.append(day)
 
     @property
     def _day(self) -> DayLog:

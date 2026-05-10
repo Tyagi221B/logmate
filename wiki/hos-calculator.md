@@ -160,11 +160,15 @@ class RouteGeoRef:
 
 ### Day-level From/To
 
-`DayLog` will get `day_start_location` and `day_end_location` fields. These are set at the first and last driving segment of each day using the same interpolation. The log sheet header uses these.
+`DayLog` has `day_start_location` and `day_end_location` fields. These are **seeded at every calendar-day boundary** by `_new_day()` using the geo position at the moment of midnight crossing. This way non-driving days (e.g. a full 34-hr restart day with zero driving) also have correct From/To values. Driving days additionally get `day_end_location` refreshed by `_add_driving` after each drive segment. Day 0 is seeded explicitly in `__init__` since `_new_day()`'s seeding logic only runs from days[1:].
+
+**Load-bearing dependency:** `_drive_leg`'s `miles_to_midnight` clamp ensures `cumulative_miles` is stable at the moment of midnight crossing — so `_loc_at_current_miles()` inside `_new_day()` returns the parked midnight position, not an end-of-drive position. If anyone removes that clamp, midnight seeding would silently corrupt.
+
+The log sheet header uses these fields. `Home Terminal Address` (frontend) derives from `days[0].day_start_location`, so seeding Day 0 also fixes Home Terminal display on cycle-exhausted trips.
 
 ## Unconfirmed (handle when we get there)
 - Recap section exact format (70-hr rolling calc)
 - From/To header confirmed = day-level actual start/end city (not leg endpoints)
 
 ## Last Updated
-2026-05-09 — added location awareness limitation + RouteGeoRef plan
+2026-05-10 — B3 fix: day_start_location / day_end_location now seeded at every calendar-day boundary in `_new_day()`, not only via `_add_driving`. Restart days (cycle=70 case) now show correct resolved city in From / To / Home Terminal. Confirmed FMCSA 49 CFR 395.8 does NOT require From/To header (vendor convention only); per-day driving start/end is the standard driver practice.

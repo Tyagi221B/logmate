@@ -178,3 +178,19 @@ Full audit before fix: read all affected files, trace execution path line by lin
 
 ## [2026-05-10] build | Fix B1 — post-trip log uses resolved city, not raw input
 hos_calculator.py:392-396: post-trip, off-duty, and fill_day segments at end of run() were using the raw user-typed `dropoff` string while the Pickup/Dropoff segments above used the resolved `dropoff_loc`. Visible symptom: Dropoff bracket showed "Surat, Gujarat" while Post-trip/TIV bracket directly next to it showed "Surat, Gujarat, India" — same city, two different formats, on the same log sheet. Fix: replace `dropoff` with `dropoff_loc` on lines 392, 393, 396. Verified in browser with Mumbai trip: all three diagonals on final-day sheet now show consistent "Mumbai, Maharashtra" format.
+
+## [2026-05-10] research | FMCSA 49 CFR 395.8 — From/To NOT regulated, vendor convention only
+Web-searched primary sources before fixing B3. Key finding: 49 CFR 395.8(d) lists 11 required RODS fields — From/To is NOT among them. The regulation only requires location at every duty status change (our REMARKS / brackets / diagonals). From/To are vendor-added fields on most blank paper forms (JJ Keller, Schneider, etc.) with no FMCSA-mandated semantics. Driver-community convention: From = day's driving start city, To = day's furthest point / driving end city. For non-driving days no firm convention — most drivers write the stationary parked city. This validates our day-level interpretation (locked in 2026-05-09 wiki decision) and the B3 fix approach (seed parked city for restart days). Sources: ecfr.io/Title-49/Section-395.8, law.cornell.edu/cfr/text/49/395.8, thetruckersreport.com/how-to-fill-out-a-truck-driver-log-book.
+
+## [2026-05-10] build | Fix B3 — restart-day From / To / Home Terminal show resolved city
+Bug: when cycle_hours=70 triggers an initial 34-hr restart, Day 0 is a 100% sleeper-berth day with no `_add_driving` call. `day_start_location` and `day_end_location` stayed empty (only ever set inside `_add_driving`). Frontend fallback chain in LogSheet.tsx + App.tsx then displayed the raw user-typed input ("Roorkee, Uttarakhand, India") on Day 0's From/To AND on Home Terminal Address across all pages — while Days 1+ correctly showed the resolved "Roorkee, Uttarakhand". Visible inconsistency on every restart-triggered trip.
+
+Fix in hos_calculator.py:
+1. `_new_day()` now seeds `day.day_start_location` and seals `prev.day_end_location` from `_loc_at_current_miles()` at the moment of midnight crossing. Safe because `_drive_leg`'s `miles_to_midnight` clamp keeps `cumulative_miles` stable at the cross — load-bearing dependency, documented inline.
+2. `__init__` explicitly seeds `days[0].day_start_location` right after first `_new_day()` (since `_new_day`'s seeding only runs for days[1:]).
+
+Fallback chain: `_loc_at_current_miles()` (resolved placeholder) → `prev.day_end_location` → `prev.day_start_location` → `current_location` (raw). Empty only if all three resolve to "" (test mode without geo_ref).
+
+Bonus: Home Terminal Address auto-fixes too, since it derives from `days[0].day_start_location` via App.tsx:172 → LogSheet.tsx:141. Three UI fixes from one backend change.
+
+Verified live with cycle=70 Roorkee → Mumbai → Surat trip: all 4 days now show consistent `City, State` format on From, To, and Home Terminal Address fields. cycle=0 path unchanged (the new pre-seed produces the same value `_add_driving` would have set; existing guard at line 242 makes it a no-op).
