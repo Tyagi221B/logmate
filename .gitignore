@@ -34,3 +34,6 @@ frontend/dist/
 
 # uv
 backend/.python-version
+
+# Local prep — not for repo
+interview-prep/

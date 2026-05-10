@@ -364,6 +364,11 @@ class TripScheduler:
         pickup = self.locations["pickup"]
         dropoff = self.locations["dropoff"]
 
+        # If cycle is exhausted, driver cannot do pre-trip — restart first
+        if self.cycle_hours >= MAX_CYCLE_HOURS - PRETRIP_DURATION:
+            restart_loc = self._loc_at_current_miles() or current
+            self._restart_34hr(restart_loc)
+
         # Pre-trip inspection — 14-hr window starts now
         self.window_start = self.abs_hour
         start_loc = self._loc_at_current_miles() or current

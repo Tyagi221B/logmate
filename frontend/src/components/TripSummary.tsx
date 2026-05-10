@@ -1,4 +1,4 @@
-import { MapPin, Clock, Gauge, CalendarDays } from 'lucide-react'
+import { MapPin, Clock, Gauge, CalendarDays, AlertTriangle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import type { TripResponse } from '@/types/trip'
 
@@ -22,8 +22,10 @@ function toHHMM(decimal: number): string {
 
 export default function TripSummary({ data, cycleHoursUsed }: Props) {
   const { route, locations, days } = data
+  const hasInitialRestart = days[0]?.segments.some(s => s.activity === '34-hr restart')
+  const effectiveCycleStart = hasInitialRestart ? 0 : cycleHoursUsed
   const totalDrivingHours = days.reduce((sum, d) => sum + d.totals.driving, 0)
-  const cycleAfter = Math.min(70, cycleHoursUsed + totalDrivingHours + days.reduce((sum, d) => sum + d.totals.on_duty, 0))
+  const cycleAfter = Math.min(70, effectiveCycleStart + totalDrivingHours + days.reduce((sum, d) => sum + d.totals.on_duty, 0))
   const cycleRemaining = Math.max(0, 70 - cycleAfter)
 
   return (
@@ -66,6 +68,15 @@ export default function TripSummary({ data, cycleHoursUsed }: Props) {
           <span>→</span>
           <span className="text-green-500 font-medium">{locations.dropoff.label}</span>
         </div>
+
+        {hasInitialRestart && (
+          <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+            <p className="text-xs text-amber-500">
+              A 34-hr restart was required before this trip — your cycle hours were exhausted. Driving begins after the restart.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

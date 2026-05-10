@@ -164,3 +164,14 @@ Added GET /api/health/ → {"status": "ok", "version": "1.0.0"}. Used to verify 
 
 ## [2026-05-09] build | GitHub repo published
 Public repo: github.com/Tyagi221B/logmate. Includes backend/, frontend/, wiki/, raw/, CLAUDE.md. No secrets committed. wiki/ included intentionally — shows systematic thinking and AI fluency (both valued in the JD). .gitignore covers .env, *.env.local, .venv/, node_modules/, db.sqlite3.
+
+## [2026-05-10] incident | Two bugs found via cycle_hours=70 audit
+
+Bug 1 — hos_calculator.py: pre-trip inspection was added before the cycle limit check in run(). At cycle_hours=70, pre-trip pushed cycle to 70.5 (illegal — FMCSA 49 CFR §395.3 prohibits ANY on-duty activity after 70hrs). Fix: added cycle check before pre-trip in run(). Threshold = MAX_CYCLE_HOURS - PRETRIP_DURATION = 69.5 — covers all cases where pre-trip would push driver to/over 70hrs.
+
+Bug 2 — TripSummary.tsx: cycleAfter calculation used cycleHoursUsed (e.g. 70) as the base even after a 34hr restart reset cycle to 0. "Cycle Remaining" showed 0:00 instead of the correct ~59hrs. Fix: detect initial restart from days[0] segments (activity === "34-hr restart"), use 0 as effectiveCycleStart if restart found.
+
+UI addition: amber warning notice in TripSummary when initial restart detected — "A 34-hr restart was required before this trip — your cycle hours were exhausted."
+
+## [2026-05-10] decision | Systematic audit process confirmed
+Full audit before fix: read all affected files, trace execution path line by line, verify against FMCSA source (49 CFR §395.3), write HLD + LLD before touching code. Found second bug (frontend cycleAfter) during UI/UX cross-check that would have been missed with a narrow fix.
