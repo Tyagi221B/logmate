@@ -389,11 +389,11 @@ class TripScheduler:
         self._add_on_duty(DROPOFF_DURATION, dropoff_loc, "Dropoff")
 
         # End of trip — post-trip + rest
-        self._add_on_duty(POSTTRIP_DURATION, dropoff, "Post-trip/TIV")
-        self._add("off_duty", END_OF_DAY_OFFDUTY, dropoff, "Off duty")
+        self._add_on_duty(POSTTRIP_DURATION, dropoff_loc, "Post-trip/TIV")
+        self._add("off_duty", END_OF_DAY_OFFDUTY, dropoff_loc, "Off duty")
 
         # Fill remaining day
-        self._fill_day(dropoff)
+        self._fill_day(dropoff_loc)
 
         return [d.to_dict() for d in self.days]
 

@@ -175,3 +175,6 @@ UI addition: amber warning notice in TripSummary when initial restart detected �
 
 ## [2026-05-10] decision | Systematic audit process confirmed
 Full audit before fix: read all affected files, trace execution path line by line, verify against FMCSA source (49 CFR §395.3), write HLD + LLD before touching code. Found second bug (frontend cycleAfter) during UI/UX cross-check that would have been missed with a narrow fix.
+
+## [2026-05-10] build | Fix B1 — post-trip log uses resolved city, not raw input
+hos_calculator.py:392-396: post-trip, off-duty, and fill_day segments at end of run() were using the raw user-typed `dropoff` string while the Pickup/Dropoff segments above used the resolved `dropoff_loc`. Visible symptom: Dropoff bracket showed "Surat, Gujarat" while Post-trip/TIV bracket directly next to it showed "Surat, Gujarat, India" — same city, two different formats, on the same log sheet. Fix: replace `dropoff` with `dropoff_loc` on lines 392, 393, 396. Verified in browser with Mumbai trip: all three diagonals on final-day sheet now show consistent "Mumbai, Maharashtra" format.
