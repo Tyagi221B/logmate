@@ -207,3 +207,18 @@ Invariants preserved: first segment starts at 0.0, last ends at 24.0 (both round
 Internal scheduler math (cycle hours, 14-hour window, 8-hour break clock) reads from `self.abs_hour` / `self.cycle_hours` directly — never from rounded `to_dict()` output. Flipping the toggle to `False` exposes raw floating-point precision without affecting scheduling correctness, useful for debugging.
 
 Side benefit: B2 (0.1-mile sliver segments under FP edge cases) is implicitly resolved — slivers collapse to zero duration after rounding and are filtered out.
+
+## [2026-05-11] build | Add pytest suite for HOS calculator (8 tests, all passing)
+Added `backend/trips/test_hos_calculator.py` with regression guards for the four FMCSA HOS rules and the three recent fixes (B1, B3, B7). pytest added as a `[dependency-groups] dev` entry in pyproject.toml; `[tool.pytest.ini_options]` sets `pythonpath = ["."]` so `from trips.hos_calculator import ...` works without conftest gymnastics. Test discovery via `testpaths = ["trips"]`.
+
+Coverage:
+1. Short-trip totals invariant — sum of status totals = 24:00.
+2. 11-hour drive limit — no calendar day exceeds it.
+3. 70-hour cycle limit — cycle=70 inserts a "34-hr restart" segment before driving.
+4. 30-minute break (FMCSR 395.3) — long-drive trip contains "30-min break" activity.
+5. Day-page invariant — every day starts at 0:00, ends at 24:00, no gaps between segments.
+6. B3 regression — restart days have day_start_location AND day_end_location populated.
+7. B7 regression — every segment start/end is a multiple of 0.25 hr.
+8. B1 regression — final Post-trip/TIV location matches final Dropoff location.
+
+Run: `cd backend && uv run pytest -v` → 8/8 passed in ~10ms. Pure-Python (no Django settings, no DB) so the suite is fast and doesn't touch network or ORS. Future tests flagged in the file header: 14-hour window enforcement, 10-hour rest between shifts, mid-trip cycle exhaustion.
