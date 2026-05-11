@@ -22,8 +22,44 @@ function toHHMM(decimal: number): string {
 
 export default function TripSummary({ data, cycleHoursUsed }: Props) {
   const { route, locations, days } = data
-  const hasInitialRestart = days[0]?.segments.some(s => s.activity === '34-hr restart')
-  const effectiveCycleStart = hasInitialRestart ? 0 : cycleHoursUsed
+  // Find the first 34-hr restart across ALL days (not just Day 1 — low cycle hours
+  // can exhaust mid-trip on Day 2 or later)
+  let restartDayIdx = -1
+  let restartSegIdx = -1
+  for (let d = 0; d < days.length; d++) {
+    const idx = days[d].segments.findIndex(s => s.activity === '34-hr restart')
+    if (idx !== -1) {
+      restartDayIdx = d
+      restartSegIdx = idx
+      break
+    }
+  }
+
+  // Was there any driving before the restart?
+  let drivingBeforeRestart = false
+  if (restartDayIdx !== -1) {
+    // Check all days before the restart day
+    for (let d = 0; d < restartDayIdx; d++) {
+      if (days[d].segments.some(s => s.status === 'driving')) {
+        drivingBeforeRestart = true
+        break
+      }
+    }
+    // Check segments on the restart day that come before the restart
+    if (!drivingBeforeRestart) {
+      for (let i = 0; i < restartSegIdx; i++) {
+        if (days[restartDayIdx].segments[i].status === 'driving') {
+          drivingBeforeRestart = true
+          break
+        }
+      }
+    }
+  }
+
+  const hasRestart = restartDayIdx !== -1
+  const restartBeforeDriving = hasRestart && !drivingBeforeRestart
+
+  const effectiveCycleStart = restartBeforeDriving ? 0 : cycleHoursUsed
   const totalDrivingHours = days.reduce((sum, d) => sum + d.totals.driving, 0)
   const cycleAfter = Math.min(70, effectiveCycleStart + totalDrivingHours + days.reduce((sum, d) => sum + d.totals.on_duty, 0))
   const cycleRemaining = Math.max(0, 70 - cycleAfter)
@@ -69,11 +105,13 @@ export default function TripSummary({ data, cycleHoursUsed }: Props) {
           <span className="text-green-500 font-medium">{locations.dropoff.label}</span>
         </div>
 
-        {hasInitialRestart && (
+        {hasRestart && (
           <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <p className="text-xs text-amber-500">
-              A 34-hr restart was required before this trip — your cycle hours were exhausted. Driving begins after the restart.
+              {restartBeforeDriving
+                ? 'A 34-hr restart was required before this trip — your cycle hours were exhausted. Driving begins after the restart.'
+                : 'A 34-hr restart was required mid-trip — your cycle hours were exhausted during the journey.'}
             </p>
           </div>
         )}
