@@ -112,70 +112,78 @@ function Results({
   const currentDay = data.days[dayIdx]
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
+    <div>
+      {/* Sticky top bar — always visible */}
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="mx-auto max-w-6xl px-4 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onReset}
+            className="-ml-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Plan another trip
+          </Button>
+        </div>
+      </div>
 
-      {/* Back button */}
-      <button
-        onClick={onReset}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Plan another trip
-      </button>
+      <div className="mx-auto max-w-6xl px-4 py-6 space-y-6">
 
-      {/* Trip summary */}
-      <TripSummary data={data} cycleHoursUsed={cycleHours} />
-
-      {/* Map */}
-      <RouteMap route={data.route} locations={data.locations} />
-
-      {/* Log sheet — one day at a time */}
-      <div className="space-y-3">
-        {/* Day header + pagination */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Driver's Daily Log</p>
-            <p className="text-base font-semibold">
-              Day {dayIdx + 1} — {currentDay.date}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              disabled={dayIdx === 0}
-              onClick={() => setDayIdx(i => i - 1)}
-              aria-label="Previous day"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {dayIdx + 1} / {totalDays}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              disabled={dayIdx === totalDays - 1}
-              onClick={() => setDayIdx(i => i + 1)}
-              aria-label="Next day"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+        {/* Summary + map — side by side on desktop */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+          <TripSummary data={data} cycleHoursUsed={cycleHours} />
+          <RouteMap route={data.route} locations={data.locations} />
         </div>
 
-        {/* Log sheet SVG — horizontally scrollable on mobile */}
-        <div
-          className="overflow-x-auto rounded-xl border border-border"
-          style={{ WebkitOverflowScrolling: 'touch' }}
-        >
-          <LogSheet day={currentDay} driverLocation={data.days[0]?.day_start_location || data.locations.current.label} />
-        </div>
+        {/* Log sheet — one day at a time */}
+        <div className="space-y-3">
+          {/* Day header + pagination */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Driver's Daily Log</p>
+              <p className="text-base font-semibold">
+                Day {dayIdx + 1} — {currentDay.date}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={dayIdx === 0}
+                onClick={() => setDayIdx(i => i - 1)}
+                aria-label="Previous day"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {dayIdx + 1} / {totalDays}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={dayIdx === totalDays - 1}
+                onClick={() => setDayIdx(i => i + 1)}
+                aria-label="Next day"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
-        {/* Scroll hint — only on small screens */}
-        <p className="text-center text-xs text-muted-foreground sm:hidden">
-          ← Scroll sideways to view full log →
-        </p>
+          {/* Log sheet SVG — fits on desktop (1100px), scrollable on mobile */}
+          <div
+            className="overflow-x-auto rounded-xl border border-border"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            <LogSheet day={currentDay} driverLocation={data.days[0]?.day_start_location || data.locations.current.label} />
+          </div>
+
+          {/* Scroll hint — only on small screens */}
+          <p className="text-center text-xs text-muted-foreground lg:hidden">
+            ← Scroll sideways to view full log →
+          </p>
+        </div>
       </div>
     </div>
   )
