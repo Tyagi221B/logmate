@@ -194,3 +194,16 @@ Fallback chain: `_loc_at_current_miles()` (resolved placeholder) → `prev.day_e
 Bonus: Home Terminal Address auto-fixes too, since it derives from `days[0].day_start_location` via App.tsx:172 → LogSheet.tsx:141. Three UI fixes from one backend change.
 
 Verified live with cycle=70 Roorkee → Mumbai → Surat trip: all 4 days now show consistent `City, State` format on From, To, and Home Terminal Address fields. cycle=0 path unchanged (the new pre-seed produces the same value `_add_driving` would have set; existing guard at line 242 makes it a no-op).
+
+## [2026-05-11] build | Display rounding to 15-minute increments (FMCSA paper-log convention)
+Bug surfaced via cycle=4 Roorkee → Hardwar → Kolkata test: Hardwar is only ~19 miles from Roorkee, drive completes at `6:30 + 19/55 hr ≈ 6:50:42`. Result: status-change dots landed between the 6:45 and 7:00 tick marks, and Day 2 totals showed `14:18` sleeper / `06:42` driving — fractional minutes that real paper logs never display ("MINUTES TO BE 00, 15, 30, 45" per the form header).
+
+Fix in `hos_calculator.py`:
+1. Added module-level constant `DISPLAY_ROUND_TO_QUARTER_HOUR = True` and helper `_round_for_display(h)` that quantizes to nearest 0.25 hr.
+2. Refactored `DayLog.to_dict()` to round segment start/end, bracket start/end, totals (recomputed from rounded durations for consistency), and `on_duty_decimal`. Zero-duration segments after rounding are filtered out — cleanly handles the tiny floating-point slivers that `_drive_leg`'s `min(..., 0.1)` clamps can produce at limit boundaries.
+
+Invariants preserved: first segment starts at 0.0, last ends at 24.0 (both round to themselves), adjacent boundaries share values so rounding both ends produces identical results, total always sums to 24:00.
+
+Internal scheduler math (cycle hours, 14-hour window, 8-hour break clock) reads from `self.abs_hour` / `self.cycle_hours` directly — never from rounded `to_dict()` output. Flipping the toggle to `False` exposes raw floating-point precision without affecting scheduling correctness, useful for debugging.
+
+Side benefit: B2 (0.1-mile sliver segments under FP edge cases) is implicitly resolved — slivers collapse to zero duration after rounding and are filtered out.

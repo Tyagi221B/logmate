@@ -170,5 +170,47 @@ The log sheet header uses these fields. `Home Terminal Address` (frontend) deriv
 - Recap section exact format (70-hr rolling calc)
 - From/To header confirmed = day-level actual start/end city (not leg endpoints)
 
+## Display Rounding (FMCSA paper-log convention)
+
+FMCSA paper logs use a 15-minute grid — the totals column header on every form
+literally says **"MINUTES TO BE 00, 15, 30, 45"**. Real drivers fill in status
+changes rounded to quarter-hour boundaries because that's the resolution of the
+paper grid.
+
+The calculator runs at floating-point precision internally (e.g. a 19-mile leg
+at 55 mph completes at exactly 6:50:42), but `DayLog.to_dict()` quantizes every
+time value to the nearest 15-minute increment before serializing. Specifically:
+
+- Segment `start_hour` / `end_hour`
+- Bracket `start_hour` / `end_hour`
+- Daily totals (recomputed from rounded segment durations so they're internally
+  consistent with the chart)
+- `on_duty_decimal` (derived from rounded totals)
+
+Sub-15-minute segments that collapse to zero duration after rounding are
+filtered out — this incidentally cleans up any tiny floating-point slivers
+that the `_drive_leg` `min(..., 0.1)` clamps could produce at limit boundaries.
+
+### Toggle constant
+
+```python
+DISPLAY_ROUND_TO_QUARTER_HOUR = True   # at top of hos_calculator.py
+```
+
+Set `False` to expose raw precision values — useful for debugging the
+scheduler or verifying limit-math edge cases without the rounding artifact.
+Internal HOS math (cycle hours, 14-hour window, 8-hour break clock) reads
+from `self.abs_hour` and `self.cycle_hours` directly, never from rounded
+output, so flipping this constant cannot affect scheduling correctness.
+
+### Invariants preserved
+
+- First segment starts at `0.0`, last ends at `24.0` — both round to themselves
+- Adjacent segments share their boundary value, so rounding both ends of a
+  boundary produces identical results (no gaps, no overlaps)
+- Total day duration always sums to exactly 24:00
+
 ## Last Updated
-2026-05-10 — B3 fix: day_start_location / day_end_location now seeded at every calendar-day boundary in `_new_day()`, not only via `_add_driving`. Restart days (cycle=70 case) now show correct resolved city in From / To / Home Terminal. Confirmed FMCSA 49 CFR 395.8 does NOT require From/To header (vendor convention only); per-day driving start/end is the standard driver practice.
+2026-05-11 — added 15-minute display rounding in `DayLog.to_dict()` with a
+toggle constant (`DISPLAY_ROUND_TO_QUARTER_HOUR`). Internal scheduler math
+unchanged; only rendering output is quantized.

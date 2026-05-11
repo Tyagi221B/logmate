@@ -21,6 +21,17 @@ POSTTRIP_DURATION = 0.5    # On Duty
 END_OF_DAY_OFFDUTY = 1.0   # Off Duty after post-trip before sleeper
 AVG_SPEED_MPH = 55.0
 
+# Display rendering — affects log sheet output only, never internal HOS math.
+# FMCSA paper logs use 15-minute increments ("MINUTES TO BE 00, 15, 30, 45").
+# Set False to expose raw floating-point precision (debugging / engineering view).
+DISPLAY_ROUND_TO_QUARTER_HOUR = True
+
+
+def _round_for_display(h: float) -> float:
+    """Quantize an hour value to the nearest 15-minute increment for log rendering."""
+    return round(h * 4) / 4 if DISPLAY_ROUND_TO_QUARTER_HOUR else h
+
+
 DutyStatus = Literal["off_duty", "sleeper", "driving", "on_duty"]
 
 
@@ -110,22 +121,48 @@ class DayLog:
         return round(t["driving"] + t["on_duty"], 2)
 
     def to_dict(self) -> dict:
+        # Quantize all time values for display. Sub-quarter-hour segments collapse
+        # to zero duration and are filtered out (handles floating-point slivers cleanly).
+        rounded_totals = {"off_duty": 0.0, "sleeper": 0.0, "driving": 0.0, "on_duty": 0.0}
+        segments_out: list[dict] = []
+        for s in self.segments:
+            start_r = _round_for_display(s.start_hour)
+            end_r = _round_for_display(s.end_hour)
+            dur_r = round(end_r - start_r, 6)
+            if dur_r < 0.001:
+                continue
+            rounded_totals[s.status] = round(rounded_totals[s.status] + dur_r, 6)
+            segments_out.append({
+                "status": s.status,
+                "start_hour": round(start_r, 4),
+                "end_hour": round(end_r, 4),
+                "location": s.location,
+                "activity": s.activity,
+            })
+
+        brackets_out: list[dict] = []
+        for b in self.brackets:
+            start_r = _round_for_display(b["start_hour"])
+            end_r = _round_for_display(b["end_hour"])
+            if end_r - start_r < 0.001:
+                continue
+            brackets_out.append({
+                "start_hour": start_r,
+                "end_hour": end_r,
+                "location": b["location"],
+                "activity": b["activity"],
+            })
+
+        final_totals = {k: round(v, 2) for k, v in rounded_totals.items()}
+        on_duty_dec = round(final_totals["driving"] + final_totals["on_duty"], 2)
+
         return {
             "date": self.date_str,
             "date_offset": self.date_offset,
-            "segments": [
-                {
-                    "status": s.status,
-                    "start_hour": round(s.start_hour, 4),
-                    "end_hour": round(s.end_hour, 4),
-                    "location": s.location,
-                    "activity": s.activity,
-                }
-                for s in self.segments
-            ],
-            "brackets": self.brackets,
-            "totals": self.totals,
-            "on_duty_decimal": self.on_duty_decimal,
+            "segments": segments_out,
+            "brackets": brackets_out,
+            "totals": final_totals,
+            "on_duty_decimal": on_duty_dec,
             "driving_miles_today": round(self.driving_miles, 1),
             "day_start_location": self.day_start_location,
             "day_end_location": self.day_end_location,
