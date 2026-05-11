@@ -222,3 +222,15 @@ Coverage:
 8. B1 regression — final Post-trip/TIV location matches final Dropoff location.
 
 Run: `cd backend && uv run pytest -v` → 8/8 passed in ~10ms. Pure-Python (no Django settings, no DB) so the suite is fast and doesn't touch network or ORS. Future tests flagged in the file header: 14-hour window enforcement, 10-hour rest between shifts, mid-trip cycle exhaustion.
+
+## [2026-05-11] build | Production hardening — security and observability
+Six related changes to align the deployed configuration with standard Django/DRF production practice. All low-risk; no behavior change for the happy-path request flow.
+
+1. **Admin route removed** — `spotter/urls.py` no longer exposes `path('admin/', admin.site.urls)`. The project has no models, no superuser flow; an unused login form is only a brute-force surface. `django.contrib.admin` remains in `INSTALLED_APPS` (dormant) in case future work needs it.
+2. **Input length caps** — `serializers.py` now sets `max_length=200` on `current_location`, `pickup_location`, `dropoff_location`. Without this, Django's default `DATA_UPLOAD_MAX_MEMORY_SIZE` (2.5MB) is the only ceiling; 200 is generous against typical autocomplete labels (20-60 chars).
+3. **SECRET_KEY required from environment** — `settings.py` uses `os.environ['SECRET_KEY']` (raises `KeyError` on missing) instead of the `'django-insecure-change-me-in-production'` fallback. The production environment was confirmed to contain a strong token prior to the change.
+4. **DEBUG defaults to False** — `os.getenv('DEBUG', 'False').lower() == 'true'`. Local development opts in via `.env`. Removes the "DEBUG=True if env var missing" failure mode.
+5. **HTTPS hardening block** — wrapped in `if not DEBUG:` so local development is unaffected. Adds `SECURE_PROXY_SSL_HEADER` (nginx terminates TLS upstream), `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, HSTS (1 year + subdomains + preload), and `SECURE_REFERRER_POLICY='strict-origin-when-cross-origin'`.
+6. **Observability for upstream failures** — `ors_client.py` `reverse_geocode` and `autocomplete` previously did `except Exception: pass` / `return []` with no signal. Now log a WARNING with the failing arguments before falling through. Default Django logging surfaces WARNING to stderr, which gunicorn → systemd writes to `journalctl`. No user-facing behavior change.
+
+Verification: `uv run pytest -v` → 8/8 passed; `python manage.py check` → no issues. End-to-end smoke test with `Chicago, IL → St. Louis, MO → Dallas, TX` (cycle=20) confirms request flow intact and log sheets render correctly.

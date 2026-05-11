@@ -14,10 +14,10 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
 from django.urls import path, include
 
+# Django admin route intentionally not exposed — no models, no superuser flow,
+# and an unused login form is just a brute-force target.
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path('api/', include('trips.urls')),
 ]

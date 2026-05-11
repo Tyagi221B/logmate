@@ -1,5 +1,9 @@
+import logging
+
 import requests
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 ORS_BASE = "https://api.openrouteservice.org"
 
@@ -78,7 +82,8 @@ def autocomplete(q: str) -> list[dict]:
             if label:
                 results.append({"label": label, "lat": lat, "lng": lng})
         return results
-    except Exception:
+    except Exception as e:
+        logger.warning("autocomplete failed for q=%r: %s", q, e)
         return []
 
 
@@ -100,8 +105,8 @@ def reverse_geocode(lat: float, lng: float) -> str:
             if city and state:
                 return f"{city}, {state}"
             return city or state or props.get("label", "")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("reverse_geocode failed for (%.4f, %.4f): %s", lat, lng, e)
     return ""
 
 

@@ -6,8 +6,8 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me-in-production')
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+SECRET_KEY = os.environ['SECRET_KEY']                            # hard-fail if missing; no insecure default
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'            # default False; opt in via .env for local dev
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
@@ -74,3 +74,15 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 ORS_API_KEY = os.getenv('ORS_API_KEY')
+
+# Production hardening — only enabled when DEBUG=False (i.e. on the deployed server).
+# Local dev with DEBUG=True is unaffected.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # nginx terminates TLS
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000        # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
