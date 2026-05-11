@@ -14,7 +14,8 @@ const HEADER_H = 190    // header section height
 const ROW_H = 44        // each status row height
 const GRID_H = ROW_H * 4
 const REMARKS_H = 140
-const SVG_H = HEADER_H + GRID_H + REMARKS_H + 40  // ~550
+const SHIPPING_H = 70   // shipping docs + instruction text below remarks
+const SVG_H = HEADER_H + GRID_H + REMARKS_H + SHIPPING_H  // 576
 
 // Row Y midpoints (relative to HEADER_H)
 const ROW_Y: Record<Segment['status'], number> = {
@@ -81,6 +82,9 @@ export default function LogSheet({ day, driverLocation }: Props) {
       {/* ── TOTALS PANEL ─────────────────────────────────────────────── */}
       <TotalsPanel totals={totals} onDutyDecimal={on_duty_decimal} />
 
+      {/* ── SHIPPING DOCS ────────────────────────────────────────────── */}
+      <ShippingDocs />
+
       {/* Outer border */}
       <rect x={0} y={0} width={W} height={SVG_H} fill="none" stroke="#94a3b8" strokeWidth={1} />
     </svg>
@@ -99,7 +103,7 @@ function Header({ date, fromLabel, toLabel, driverLocation, drivingMiles }: {
       <text x={LABEL_W} y={24} fontSize={15} fontWeight="bold" fill="#1e3a5f">Drivers Daily Log</text>
       <text x={LABEL_W + 205} y={24} fontSize={10} fill="#475569">(24 hours)</text>
 
-      {/* Date — label on top line, value + underline below with clear gap */}
+      {/* Date */}
       <text x={LABEL_W + 368} y={13} fontSize={8} fill="#64748b">Month</text>
       <text x={LABEL_W + 418} y={13} fontSize={8} fill="#64748b">Day</text>
       <text x={LABEL_W + 460} y={13} fontSize={8} fill="#64748b">Year</text>
@@ -118,7 +122,6 @@ function Header({ date, fromLabel, toLabel, driverLocation, drivingMiles }: {
       <text x={LABEL_W} y={44} fontSize={10} fontWeight="bold" fill="#1e3a5f">From:</text>
       <line x1={LABEL_W + 34} y1={45} x2={LABEL_W + 240} y2={45} stroke="#94a3b8" strokeWidth={0.8} />
       <text x={LABEL_W + 36} y={44} fontSize={10} fill="#0f172a">{fromLabel}</text>
-
       <text x={LABEL_W + 260} y={44} fontSize={10} fontWeight="bold" fill="#1e3a5f">To:</text>
       <line x1={LABEL_W + 278} y1={45} x2={LABEL_W + 480} y2={45} stroke="#94a3b8" strokeWidth={0.8} />
       <text x={LABEL_W + 280} y={44} fontSize={10} fill="#0f172a">{toLabel}</text>
@@ -413,6 +416,37 @@ function Remarks({ brackets }: { brackets: DayLog['brackets'] }) {
           </g>
         )
       })}
+    </g>
+  )
+}
+
+function ShippingDocs() {
+  const y0 = HEADER_H + GRID_H + REMARKS_H  // = 506, top of shipping section
+
+  return (
+    <g>
+      {/* Top separator */}
+      <line x1={4} y1={y0 + 2} x2={W - 4} y2={y0 + 2} stroke="#cbd5e1" strokeWidth={0.8} />
+
+      {/* Instruction text */}
+      <text x={W / 2} y={y0 + 16} fontSize={7} fill="#64748b" textAnchor="middle" fontStyle="italic">
+        Each change of duty status must have a location in the &quot;remarks&quot; section. Use time standard of home terminal.
+      </text>
+
+      {/* SHIPPER */}
+      <text x={14} y={y0 + 35} fontSize={8} fontWeight="bold" fill="#1e3a5f">SHIPPER:</text>
+      <line x1={66} y1={y0 + 37} x2={310} y2={y0 + 37} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={188} y={y0 + 50} fontSize={9} fontWeight="bold" fill="#94a3b8" textAnchor="middle">N/A</text>
+
+      {/* COMMODITY */}
+      <text x={330} y={y0 + 35} fontSize={8} fontWeight="bold" fill="#1e3a5f">COMMODITY:</text>
+      <line x1={396} y1={y0 + 37} x2={640} y2={y0 + 37} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={518} y={y0 + 50} fontSize={9} fontWeight="bold" fill="#94a3b8" textAnchor="middle">N/A</text>
+
+      {/* LOAD NO. */}
+      <text x={660} y={y0 + 35} fontSize={8} fontWeight="bold" fill="#1e3a5f">LOAD NO.:</text>
+      <line x1={716} y1={y0 + 37} x2={960} y2={y0 + 37} stroke="#94a3b8" strokeWidth={0.8} />
+      <text x={838} y={y0 + 50} fontSize={9} fontWeight="bold" fill="#94a3b8" textAnchor="middle">N/A</text>
     </g>
   )
 }
