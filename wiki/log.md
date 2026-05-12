@@ -234,3 +234,21 @@ Six related changes to align the deployed configuration with standard Django/DRF
 6. **Observability for upstream failures** — `ors_client.py` `reverse_geocode` and `autocomplete` previously did `except Exception: pass` / `return []` with no signal. Now log a WARNING with the failing arguments before falling through. Default Django logging surfaces WARNING to stderr, which gunicorn → systemd writes to `journalctl`. No user-facing behavior change.
 
 Verification: `uv run pytest -v` → 8/8 passed; `python manage.py check` → no issues. End-to-end smoke test with `Chicago, IL → St. Louis, MO → Dallas, TX` (cycle=20) confirms request flow intact and log sheets render correctly.
+
+## [2026-05-12] build | Bug B — extend rest past midnight to keep daily driving ≤ 11hrs on log sheet
+Surfaced via `Chicago → St. Louis → Dallas` with `cycle=65`: Day 3 displayed `11:45` driving on the FMCSA log. Investigation showed the actual scheduling was HOS-compliant — driver drove 11 hrs in shift 1, took the standard 10-hr rest, then drove ~0.65 hrs in shift 2 to reach Dallas. Both shifts individually within §395.3's 11-hr driving cap. The problem: the 34-hr restart on Day 1/2 ended at 9pm Day 2, so shift 1's drive limit landed at ~10am Day 3, and the standard 10-hr rest ended at ~8pm same day — leaving shift 2's entire driving stint on Day 3's log page. Two legal shifts on one calendar page sum past 11 hrs, which reads as a violation to any DOT inspector glancing at the daily totals.
+
+Fix in `hos_calculator.py::_rest()`: when the natural 10-hr rest would end on the same calendar day it started, extend the sleeper portion to the next midnight. Legal per §395.3 — the regulation specifies a *minimum* 10-hr rest, not a maximum. After fix: Day 3 shows `09:30` driving / 522 mi, Day 4 picks up the remaining 119 mi cleanly.
+
+Why this works without touching the trigger conditions: `_rest()` is only called from `_drive_leg`, and only when there are remaining drive miles in the current leg (the function's outer loop exits before that). So "extension applied" implies "more driving will follow", which is the only case where the calendar-day double-shift issue can manifest. If natural rest already crosses midnight (e.g., shift 1 ended evening), the `natural_end_abs < next_midnight_abs` check is false and behavior is unchanged.
+
+Side-effect observed: the driver "wakes up" at exactly 00:00 and starts pre-trip. Unrealistic but legal — the schedule is generated, not lived. Acceptable per user; will be addressed in loom narration rather than code.
+
+Verification:
+- All 8 prior tests pass unchanged. Manually traced `test_no_day_exceeds_11_hour_driving` (cycle=20): shift 1 ends hour 18, natural rest ends hour 28 (Day 2 hour 4) — already crosses midnight, no extension applied, behavior unchanged.
+- Added regression test `test_no_day_exceeds_11_hours_after_mid_trip_restart` covering the exact cycle=65 scenario.
+- Cross-checked with cycle=70 (immediate restart, same locations): Days 1-4 driving = `0 / 6:30 / 4:30 / 6:45`, all under 11. The fix correctly extends Day 3's sleeper to 18 hrs when `driving_today` carries over from Day 2's pickup-spanning shift.
+
+Pre-existing bug noticed but NOT fixed in this commit: `_rest()` adds `POSTTRIP_DURATION (0.5 on-duty) + END_OF_DAY_OFFDUTY (1.0 off-duty) + sleeper (8.5)` = 10 hrs of elapsed time, but only 9.5 hrs of off-duty/sleeper rest (post-trip is on-duty, doesn't count toward §395.3's "10 consecutive hours off duty or in sleeper berth"). Flag for later.
+
+Latent Bug A also pending: `LogSheet.tsx:47` falls back `day.day_end_location || driverLocation`, which surfaces the home terminal as the "To:" city on truly 0-driving days (e.g., a mid-trip restart day in a longer trip). After Bug B fix, the specific Chicago→Dallas screenshot no longer triggers it (Day 4 now has driving + dropoff), but the underlying fallback chain is still wrong.

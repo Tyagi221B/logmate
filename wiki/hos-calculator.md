@@ -210,7 +210,31 @@ output, so flipping this constant cannot affect scheduling correctness.
   boundary produces identical results (no gaps, no overlaps)
 - Total day duration always sums to exactly 24:00
 
+## Rest extension across midnight (calendar-day driving cap)
+
+`_rest()` extends its sleeper portion past midnight when the natural 10-hr
+rest would otherwise end on the same calendar day it began. Without this,
+shift 1 (11 hrs driving) and shift 2 (any remaining driving) can both land
+on one log page; the daily driving total then displays >11 hrs even though
+each shift is individually compliant with §395.3.
+
+The extension only kicks in when the rest is followed by more driving —
+which is always the case for `_rest()` since it's only invoked from inside
+`_drive_leg`, and only when there are remaining miles in the current leg.
+
+Legal per §395.3: the 10-hr rest is a *minimum*, not a maximum. Realism
+trade-off: in the extension case, the driver "wakes up" at exactly 00:00
+and starts pre-trip — accurate to data but unusual in real-world operation.
+
+Trigger logic in code:
+```python
+natural_end_abs = self.abs_hour + sleeper_needed
+next_midnight_abs = (self.day_idx + 1) * 24.0
+if natural_end_abs < next_midnight_abs:
+    sleeper_needed = next_midnight_abs - self.abs_hour
+```
+
 ## Last Updated
-2026-05-11 — added 15-minute display rounding in `DayLog.to_dict()` with a
-toggle constant (`DISPLAY_ROUND_TO_QUARTER_HOUR`). Internal scheduler math
-unchanged; only rendering output is quantized.
+2026-05-12 — added rest extension in `_rest()` so the next shift always
+starts on a fresh calendar page. Prevents two compliant shifts from sharing
+a single log day and displaying >11 hrs driving.
