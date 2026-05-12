@@ -44,7 +44,7 @@ export default function LogSheet({ day, driverLocation }: Props) {
 
   // derive From / To from segments
   const fromLabel = day.day_start_location || driverLocation
-  const toLabel   = day.day_end_location   || driverLocation
+  const toLabel   = day.day_end_location   || day.day_start_location || driverLocation
 
   return (
     <svg
