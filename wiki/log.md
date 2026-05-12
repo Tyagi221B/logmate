@@ -269,3 +269,27 @@ const toLabel = day.day_end_location || day.day_start_location || driverLocation
 A 0-driving day ends where it started; the existing B3 regression test confirms `day_start_location` is populated even on full-restart days. `driverLocation` remains as the final safety fallback for the hypothetical case where both day-level fields are unset.
 
 No backend change, no new tests needed — pure rendering logic. Manually verified the fallback chain still produces correct cities for the cycle=70 trip (Day 1 is a full restart day, both fields populated as `Chicago, IL`).
+
+## [2026-05-12] build | Bug C — `_rest()` counted post-trip on-duty toward the 10-hr rest (§395.3 violation)
+Pre-existing bug surfaced while writing the Bug B fix. The original `_rest()` formula was:
+```python
+sleeper_needed = REST_DURATION - END_OF_DAY_OFFDUTY - POSTTRIP_DURATION  # = 10 - 1 - 0.5 = 8.5
+```
+This treated `POSTTRIP_DURATION` (0.5 hr on-duty) as if it counted toward the 10-hr rest block. But §395.3 specifies "10 consecutive hours off duty or in sleeper berth" — on-duty time, including post-trip inspection, doesn't qualify. The actual consecutive rest delivered = off-duty (1.0) + sleeper (8.5) = **9.5 hrs**, short by 30 minutes.
+
+Visually verifiable on a cycle=0 long trip where Bug B's extension doesn't apply (shift 1 ends mid-day, natural rest crosses midnight): the gap between Post-trip ending and the next Pre-trip starting was exactly 9.5 hrs of off-duty/sleeper. With cycle=65 (post Bug B fix) or cycle=70, the rest extension masks this bug because the extended sleeper makes the actual rest 13–19 hrs.
+
+Fix in `hos_calculator.py::_rest()`:
+```python
+sleeper_needed = REST_DURATION - END_OF_DAY_OFFDUTY  # = 10 - 1 = 9.0
+```
+Off-duty (1.0) + sleeper (9.0) = **10.0 hrs** consecutive rest, satisfying §395.3.
+
+Side-effect: each `_rest()` call extends the timeline by 0.5 hrs. Verified on cycle=0 Chicago→Dallas: Day 2 pre-trip shifted from 04:30 → 05:00, which is exactly the 30-min compensation.
+
+Interaction with Bug B extension: unchanged. When natural rest crosses midnight on its own, no extension applied; off+sleeper = 10.0. When natural rest stays same day, extension overrides sleeper to next midnight; off+sleeper ≥ 10.0 (often 12+).
+
+Verification:
+- All 9 prior tests pass.
+- Added `test_consecutive_rest_at_least_10_hours` that walks every Post-trip → next Pre-trip pair in segments and asserts the consecutive off-duty/sleeper time ≥ 10 hrs. Would have caught this bug.
+- Cycle=0 trip output traced manually: rest = 1.0 (off) + 4.0 (sleeper Day 1) + 5.0 (sleeper Day 2) = 10.0 ✓
