@@ -61,6 +61,26 @@ def test_no_day_exceeds_11_hour_driving():
         )
 
 
+def test_no_day_exceeds_11_hours_after_mid_trip_restart():
+    """Mid-trip 34-hr restart pushes shift-start to evening — without sleeper extension,
+    two compliant shifts would land on the same calendar day and the daily log would
+    display >11 hrs of driving. Regression for the Chicago → St. Louis → Dallas
+    cycle=65 case where Day 3 previously showed 11:45 driving."""
+    days = calculate_schedule(**_trip(
+        current_location="Chicago, IL",
+        pickup_location="St. Louis, MO",
+        dropoff_location="Dallas, TX",
+        current_to_pickup_miles=300.0,
+        pickup_to_dropoff_miles=641.0,
+        current_cycle_hours=65.0,
+    ))
+    for i, day in enumerate(days):
+        driving = day["totals"]["driving"]
+        assert driving <= MAX_DRIVING_HOURS + 0.01, (
+            f"Day {i+1} drove {driving}h, exceeds {MAX_DRIVING_HOURS}h limit"
+        )
+
+
 # ─── 3. FMCSA 70-hour cycle + 34-hour restart ────────────────────────────────
 
 def test_cycle_exhausted_triggers_initial_restart():

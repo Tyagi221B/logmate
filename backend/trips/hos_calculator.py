@@ -314,10 +314,23 @@ class TripScheduler:
         self.window_start = self.abs_hour
 
     def _rest(self, location: str):
-        """10-hour rest: post-trip → off-duty → sleeper (splits across midnight if needed)."""
+        """10-hour rest: post-trip → off-duty → sleeper.
+
+        Sleeper is extended past midnight when the natural 10-hr rest would end on
+        the same calendar day it began. Without this, two compliant shifts can share
+        a single log page and the daily driving total displays >11 hrs (legal per
+        HOS §395.3 but visually reads as a violation to an inspector).
+        Legal because 10 hrs is the minimum rest, not the maximum.
+        """
         self._add_on_duty(POSTTRIP_DURATION, location, "Post-trip/TIV")
         self._add("off_duty", END_OF_DAY_OFFDUTY, location, "Off duty")
+
         sleeper_needed = REST_DURATION - END_OF_DAY_OFFDUTY - POSTTRIP_DURATION
+        natural_end_abs = self.abs_hour + sleeper_needed
+        next_midnight_abs = (self.day_idx + 1) * 24.0
+        if natural_end_abs < next_midnight_abs:
+            sleeper_needed = next_midnight_abs - self.abs_hour
+
         self._add("sleeper", sleeper_needed, location, "Sleeping")
 
         # Reset shift counters
