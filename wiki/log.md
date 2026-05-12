@@ -252,3 +252,20 @@ Verification:
 Pre-existing bug noticed but NOT fixed in this commit: `_rest()` adds `POSTTRIP_DURATION (0.5 on-duty) + END_OF_DAY_OFFDUTY (1.0 off-duty) + sleeper (8.5)` = 10 hrs of elapsed time, but only 9.5 hrs of off-duty/sleeper rest (post-trip is on-duty, doesn't count toward §395.3's "10 consecutive hours off duty or in sleeper berth"). Flag for later.
 
 Latent Bug A also pending: `LogSheet.tsx:47` falls back `day.day_end_location || driverLocation`, which surfaces the home terminal as the "To:" city on truly 0-driving days (e.g., a mid-trip restart day in a longer trip). After Bug B fix, the specific Chicago→Dallas screenshot no longer triggers it (Day 4 now has driving + dropoff), but the underlying fallback chain is still wrong.
+
+## [2026-05-12] build | Bug A — LogSheet "To:" header falls through home terminal
+Originally surfaced on the Chicago→St.Louis→Dallas cycle=65 trip: Day 4 (a 0-driving fill day) displayed `To: Chicago, IL` — the home terminal — even though the driver was parked in Dallas. After Bug B's fix that specific trip no longer triggers the symptom (Day 4 now has driving + dropoff), but the underlying frontend fallback was still wrong for any trip variant with a true 0-driving day.
+
+Root cause in `LogSheet.tsx:47`:
+```ts
+const toLabel = day.day_end_location || driverLocation
+```
+`driverLocation` is the home terminal address, not the driver's *current* parked location. On 0-driving days, `day_end_location` is empty and the fallback surfaces the wrong city.
+
+Fix: chain through `day_start_location` first.
+```ts
+const toLabel = day.day_end_location || day.day_start_location || driverLocation
+```
+A 0-driving day ends where it started; the existing B3 regression test confirms `day_start_location` is populated even on full-restart days. `driverLocation` remains as the final safety fallback for the hypothetical case where both day-level fields are unset.
+
+No backend change, no new tests needed — pure rendering logic. Manually verified the fallback chain still produces correct cities for the cycle=70 trip (Day 1 is a full restart day, both fields populated as `Chicago, IL`).
