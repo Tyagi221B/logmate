@@ -61,6 +61,34 @@ def test_no_day_exceeds_11_hour_driving():
         )
 
 
+def test_consecutive_rest_at_least_10_hours():
+    """FMCSA §395.3: 10 consecutive hours off-duty or sleeper required between shifts.
+    Post-trip is on-duty and must NOT count toward the 10-hr rest block. Regression
+    for the case where _rest() formerly produced only 9.5 hrs of consecutive rest."""
+    days = calculate_schedule(**_trip(
+        current_to_pickup_miles=300.0,
+        pickup_to_dropoff_miles=641.0,
+        current_cycle_hours=0.0,
+    ))
+    flat = [(d, s) for d, day in enumerate(days) for s in day["segments"]]
+    for i, (d_idx, s) in enumerate(flat):
+        if s["activity"] != "Post-trip/TIV":
+            continue
+        for j in range(i + 1, len(flat)):
+            if flat[j][1]["activity"] != "Pre-trip/TIV":
+                continue
+            rest = sum(
+                seg["end_hour"] - seg["start_hour"]
+                for _, seg in flat[i + 1:j]
+                if seg["status"] in ("off_duty", "sleeper")
+            )
+            assert rest >= 10.0 - 0.01, (
+                f"Post-trip Day {d_idx+1} → Pre-trip Day {flat[j][0]+1}: "
+                f"only {rest:.2f}h consecutive rest, need 10"
+            )
+            break
+
+
 def test_no_day_exceeds_11_hours_after_mid_trip_restart():
     """Mid-trip 34-hr restart pushes shift-start to evening — without sleeper extension,
     two compliant shifts would land on the same calendar day and the daily log would
